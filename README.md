@@ -30,6 +30,7 @@ Available today:
 - Docker sandbox path verified on host and hardened for safer execution defaults
 - a first-class `constrail` CLI entrypoint
 - read-only admin inspection endpoints for audit and sandbox history
+- filtered admin queries and JSON CLI output for operational workflows
 - automated test coverage for the current MVP spine
 
 Still under active development:
@@ -128,62 +129,17 @@ Then run the CLI module directly:
 python -m constrail.cli --help
 ```
 
-## CLI Usage
-
-Constrails provides a CLI for local development and basic operational workflows.
-
-### Initialize the database
-
-```bash
-constrail init-db
-```
-
-### Run the API server
-
-```bash
-constrail serve --host 127.0.0.1 --port 8011
-```
-
-For development reload:
-
-```bash
-constrail serve --host 127.0.0.1 --port 8011 --reload
-```
-
-### Inspect runtime configuration
-
-```bash
-constrail doctor
-```
-
-### Approval management
-
-```bash
-constrail approval-list --limit 10
-constrail approval-show <approval_id>
-constrail approval-approve <approval_id> --approver tmfpretty --comment "approved"
-constrail approval-deny <approval_id> --approver tmfpretty --comment "denied"
-```
-
-### Audit and sandbox inspection
-
-```bash
-constrail audit-list --limit 10
-constrail sandbox-list --limit 10
-```
-
-If you are running without editable install, use the module form:
-
-```bash
-PYTHONPATH=src python -m constrail.cli doctor
-PYTHONPATH=src python -m constrail.cli init-db
-PYTHONPATH=src python -m constrail.cli approval-list --limit 10
-PYTHONPATH=src python -m constrail.cli audit-list --limit 10
-PYTHONPATH=src python -m constrail.cli sandbox-list --limit 10
-PYTHONPATH=src python -m constrail.cli serve --host 127.0.0.1 --port 8011
-```
-
 ## Configuration
+
+A sample environment file is included at:
+
+- `.env.example`
+
+Copy it to `.env` and adjust values as needed:
+
+```bash
+cp .env.example .env
+```
 
 Current development defaults:
 - database: `sqlite:///./constrail-dev.db`
@@ -217,6 +173,65 @@ opa run --server ./policies/rego
 
 If OPA is not available, Constrails falls back to its built-in development policy logic.
 
+## CLI Usage
+
+Constrails provides a CLI for local development and basic operational workflows.
+
+### Initialize the database
+
+```bash
+constrail init-db
+```
+
+### Run the API server
+
+```bash
+constrail serve --host 127.0.0.1 --port 8011
+```
+
+For development reload:
+
+```bash
+constrail serve --host 127.0.0.1 --port 8011 --reload
+```
+
+### Inspect runtime configuration
+
+```bash
+constrail doctor
+constrail doctor --json
+```
+
+### Approval management
+
+```bash
+constrail approval-list --limit 10
+constrail approval-list --limit 10 --json
+constrail approval-show <approval_id>
+constrail approval-approve <approval_id> --approver tmfpretty --comment "approved"
+constrail approval-deny <approval_id> --approver tmfpretty --comment "denied"
+```
+
+### Audit and sandbox inspection
+
+```bash
+constrail audit-list --limit 10
+constrail audit-list --limit 10 --json
+constrail sandbox-list --limit 10
+constrail sandbox-list --limit 10 --json
+```
+
+If you are running without editable install, use the module form:
+
+```bash
+PYTHONPATH=src python -m constrail.cli doctor --json
+PYTHONPATH=src python -m constrail.cli init-db
+PYTHONPATH=src python -m constrail.cli approval-list --limit 10 --json
+PYTHONPATH=src python -m constrail.cli audit-list --limit 10 --json
+PYTHONPATH=src python -m constrail.cli sandbox-list --limit 10 --json
+PYTHONPATH=src python -m constrail.cli serve --host 127.0.0.1 --port 8011
+```
+
 ## Bootstrap policy files
 
 Included bootstrap files:
@@ -249,9 +264,9 @@ Example:
 constrail init-db
 constrail serve --host 127.0.0.1 --port 8011
 # in another shell:
-constrail approval-list --limit 10
-constrail audit-list --limit 10
-constrail sandbox-list --limit 10
+constrail approval-list --limit 10 --json
+constrail audit-list --limit 10 --json
+constrail sandbox-list --limit 10 --json
 ```
 
 ## Quick Start
@@ -343,6 +358,24 @@ Example approve payload:
 - `GET /v1/admin/sandbox`
 - `GET /v1/admin/sandbox/{sandbox_id}`
 
+Supported audit query parameters:
+- `limit`
+- `offset`
+- `agent_id`
+- `tool`
+- `decision`
+- `approval_id`
+- `sandbox_id`
+
+Supported sandbox query parameters:
+- `limit`
+- `offset`
+- `agent_id`
+- `tool`
+- `executor`
+- `status`
+- `approval_id`
+
 These endpoints expose read-only visibility into:
 - recent audit records
 - replay provenance
@@ -371,7 +404,12 @@ Current test coverage includes:
 - admin inspection endpoints
 - CLI command surface
 - approval management CLI
+- JSON CLI output
 - policy engine fallback and local explanation behavior
+
+## Changelog
+
+See `CHANGELOG.md` for milestone history.
 
 ## Safety Note
 
