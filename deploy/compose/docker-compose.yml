@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   constrails:
     image: python:3.11-slim
@@ -10,6 +8,12 @@ services:
       - ../../:/app
     env_file:
       - .env
+    environment:
+      AGENT_API_KEY: dev-agent
+      ADMIN_API_KEY: dev-admin
+      AGENT_TENANT_ID: default
+      AGENT_NAMESPACE: dev
+      OPA_URL: http://opa:8181
     ports:
       - "8000:8000"
     depends_on:

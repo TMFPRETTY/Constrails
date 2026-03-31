@@ -29,3 +29,32 @@ jobs:
 
       - name: Run tests
         run: pytest -q tests
+
+  compose-opa-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare compose env
+        run: cp deploy/compose/.env.example deploy/compose/.env
+
+      - name: Start compose stack
+        run: docker compose -f deploy/compose/docker-compose.yml up -d --build
+
+      - name: Run OPA smoke test
+        run: python scripts/opa_smoke.py
+
+      - name: Show compose logs on failure
+        if: failure()
+        run: docker compose -f deploy/compose/docker-compose.yml logs --no-color
+
+      - name: Tear down compose stack
+        if: always()
+        run: docker compose -f deploy/compose/docker-compose.yml down -v
