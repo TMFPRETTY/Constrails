@@ -29,3 +29,7 @@ def test_policy_engine_explain_local_policy():
     explanation = engine.explain_local_policy()
     assert explanation['fallback_mode'] is True
     assert explanation['policy_package'] == 'constrail'
+    assert any(path.endswith('allow.rego') for path in explanation['rego_files'])
+    assert any(path.endswith('approval.rego') for path in explanation['rego_files'])
+    assert any(path.endswith('sandbox.rego') for path in explanation['rego_files'])
+    assert any(path.endswith('deny.rego') for path in explanation['rego_files'])
