@@ -2,7 +2,7 @@
 
 ![Alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-51%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-57%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -24,28 +24,28 @@ Constrails currently provides a working **development MVP spine** for governed a
 Available today:
 - canonical kernel path (`kernel_v2.py`) behind FastAPI (`kernel.py`)
 - capability-based allow/deny checks with tenant/namespace-aware manifest lookup
-- capability manifest persistence, versioning, activation/deactivation, and CLI lifecycle commands
+- capability manifest persistence, versioning, activation/deactivation, mutation, and CLI lifecycle commands
 - heuristic risk scoring with bootstrap risk profiles
 - policy evaluation with built-in fallback when OPA is unavailable
-- sample OPA policy assets and package layout under `policies/rego/`
+- expanded starter OPA policy bundle plus OPA-response contract tests
 - tool broker with filesystem, HTTP, and exec adapters
 - approval request lifecycle, status model, replay flow, webhook delivery tracking, and retry hooks
 - local SQLite-backed audit, approval, sandbox execution, and capability persistence for development
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
-- Docker sandbox path verified on host and hardened for safer execution defaults
+- Docker sandbox path hardened with clearer production-posture reporting
 - a first-class `constrail` CLI entrypoint
 - read-only admin inspection endpoints for audit, sandbox, and capability history
-- filtered admin queries and JSON CLI output for operational workflows
+- filtered admin queries and scoped admin semantics for operational workflows
 - basic admin/agent auth separation with dual static keys for alpha use
 - deployment examples for Docker Compose + OPA sidecar flow
 - automated test coverage for the current MVP spine
 
 Still under active development:
 - production-grade approval UX and durable delivery guarantees
-- verified production-grade containerized sandbox execution defaults for broader deployment targets
-- stronger tenant-aware admin controls and lifecycle governance
-- deeper OPA policy coverage beyond the starter bundle
+- verified production-grade containerized sandbox execution defaults across broader deployment targets
+- stronger identity/auth primitives beyond static alpha keys
+- deeper OPA integration coverage against live policy services
 - broader package distribution ergonomics
 
 ## Why Constrails
@@ -76,7 +76,7 @@ Core components in this repository:
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
 - `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, and retry helpers
 - `src/constrail/auth.py` - alpha auth principal and role helpers
-- `src/constrail/sandbox.py` - sandbox executor abstraction and implementations
+- `src/constrail/sandbox.py` - sandbox executor abstraction, posture reporting, and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
 - `src/constrail/database.py` - development database models and session management
 - `src/constrail/cli.py` - CLI entrypoint for local operations
@@ -171,6 +171,7 @@ Current development defaults:
 - database: `sqlite:///./constrail-dev.db`
 - policy fallback: built-in simple policy if OPA is unavailable
 - sandbox type: `dev`
+- sandbox mode: `development`
 - filesystem adapter base path: current repository working directory
 - auth mode: dual static keys for alpha (`agent_api_key`, `admin_api_key`)
 - approval webhooks: optional, with delivery tracking and manual retry support
@@ -185,8 +186,12 @@ If Docker is available, you can opt in before starting the API:
 
 ```bash
 export SANDBOX_TYPE=docker
+export SANDBOX_MODE=production
+export SANDBOX_REQUIRE_IMAGE_DIGEST=true
 export DOCKER_SOCKET=unix:///var/run/docker.sock
 ```
+
+Use `constrail doctor --json` to inspect whether the current sandbox posture looks production-ready.
 
 ### Optional OPA selection
 
@@ -246,6 +251,15 @@ constrail auth-status
 constrail auth-status --json
 ```
 
+`doctor --json` now exposes sandbox posture fields such as:
+- `sandbox_mode`
+- `sandbox_image_has_digest`
+- `sandbox_require_image_digest`
+- `sandbox_allow_host_network`
+- `sandbox_workspace_mount_readonly`
+- `production_ready`
+- `warnings`
+
 ### Approval management
 
 ```bash
@@ -258,7 +272,7 @@ constrail approval-retry-webhook <approval_id> --json
 constrail approval-replay <approval_id> --json
 ```
 
-`approval-show` and `approval-list --json` now expose delivery visibility, including:
+`approval-show` and `approval-list --json` expose delivery visibility, including:
 - `webhook_delivery_status`
 - `webhook_delivery_attempts`
 - `webhook_last_attempt_at`
@@ -270,8 +284,10 @@ constrail approval-replay <approval_id> --json
 ```bash
 constrail capability-list --json
 constrail capability-create --agent demo --tenant default --namespace dev --tool read_file --tool list_directory --json
-constrail capability-bump 1 --json
-constrail capability-deactivate 1
+constrail capability-update-tools 1 --tool read_file --tool http_request --json
+constrail capability-bump 1 --inactive --json
+constrail capability-activate 2 --json
+constrail capability-deactivate 2
 ```
 
 ### Audit and sandbox inspection
@@ -336,11 +352,11 @@ Current test coverage includes:
 - approval request lifecycle, webhook delivery tracking, and auth boundaries
 - capability constraints and lifecycle management
 - exec adapter sandbox behavior
-- sandbox executor selection and replay flow
+- sandbox executor selection, posture reporting, and replay flow
 - audit and sandbox provenance linkage
 - admin inspection endpoints
 - CLI command surface and JSON output
-- policy engine fallback and local explanation behavior
+- policy engine fallback, explanation behavior, and OPA-response contract coverage
 
 ## Changelog
 
