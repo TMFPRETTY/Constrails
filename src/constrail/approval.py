@@ -50,14 +50,22 @@ class ApprovalService:
         finally:
             db.close()
 
-    def list_requests(self) -> list[ApprovalRequestModel]:
+    def list_requests(
+        self,
+        approved: Optional[bool] = None,
+        agent_id: Optional[str] = None,
+        tool: Optional[str] = None,
+    ) -> list[ApprovalRequestModel]:
         db = SessionLocal()
         try:
-            return (
-                db.query(ApprovalRequestModel)
-                .order_by(ApprovalRequestModel.created_at.desc())
-                .all()
-            )
+            query = db.query(ApprovalRequestModel)
+            if approved is not None:
+                query = query.filter(ApprovalRequestModel.approved == approved)
+            if agent_id is not None:
+                query = query.filter(ApprovalRequestModel.agent_id == agent_id)
+            if tool is not None:
+                query = query.filter(ApprovalRequestModel.tool == tool)
+            return query.order_by(ApprovalRequestModel.created_at.desc()).all()
         finally:
             db.close()
 

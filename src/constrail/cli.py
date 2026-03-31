@@ -4,6 +4,7 @@ Constrail CLI entrypoint.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from . import __version__
 from .approval import get_approval_service
 from .config import settings
 from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
+from .kernel_v2 import ConstrailKernel
 from .sandbox import get_sandbox_executor, reset_sandbox_executor
 
 console = Console()
@@ -181,11 +183,25 @@ def sandbox_list_command(limit: int, as_json: bool):
 
 @cli.command("approval-list", help="List recent approval requests.")
 @click.option("--limit", default=10, type=int, help="Maximum number of rows to show.")
+@click.option("--approved", type=click.Choice(["true", "false", "pending"]), default=None, help="Filter by approval state.")
+@click.option("--agent", "agent_id", default=None, help="Filter by agent ID.")
+@click.option("--tool", default=None, help="Filter by tool name.")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
-def approval_list_command(limit: int, as_json: bool):
+def approval_list_command(limit: int, approved: str | None, agent_id: str | None, tool: str | None, as_json: bool):
     init_db()
     service = get_approval_service()
-    rows = service.list_requests()[:limit]
+    approved_filter = None
+    if approved == "true":
+        approved_filter = True
+    elif approved == "false":
+        approved_filter = False
+    elif approved == "pending":
+        approved_filter = None
+
+    rows = service.list_requests(approved=approved_filter, agent_id=agent_id, tool=tool)[:limit]
+    if approved == "pending":
+        rows = [row for row in rows if row.approved is None]
+
     payload = [
         {
             "approval_id": str(row.approval_id),
@@ -219,13 +235,14 @@ def approval_list_command(limit: int, as_json: bool):
 
 @cli.command("approval-show", help="Show a single approval request.")
 @click.argument("approval_id")
-def approval_show_command(approval_id: str):
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def approval_show_command(approval_id: str, as_json: bool):
     init_db()
     service = get_approval_service()
     row = service.get_request(UUID(approval_id))
     if row is None:
         raise click.ClickException("Approval request not found")
-    console.print_json(json.dumps({
+    payload = {
         "approval_id": str(row.approval_id),
         "request_id": str(row.request_id),
         "agent_id": row.agent_id,
@@ -234,7 +251,11 @@ def approval_show_command(approval_id: str):
         "approved": row.approved,
         "approver_id": row.approver_id,
         "review_comment": row.review_comment,
-    }))
+    }
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
 
 
 @cli.command("approval-approve", help="Approve an approval request.")
@@ -261,6 +282,20 @@ def approval_deny_command(approval_id: str, approver: str, comment: str | None):
     if row is None:
         raise click.ClickException("Approval request not found")
     console.print(f"[yellow]Denied {row.approval_id}[/yellow]")
+
+
+@cli.command("approval-replay", help="Replay an already approved request.")
+@click.argument("approval_id")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def approval_replay_command(approval_id: str, as_json: bool):
+    init_db()
+    kernel = ConstrailKernel()
+    response = asyncio.run(kernel.replay_approved(UUID(approval_id)))
+    payload = response.model_dump(mode="json")
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
 
 
 if __name__ == "__main__":

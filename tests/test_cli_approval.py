@@ -24,11 +24,11 @@ def test_approval_management_commands():
     response = run(kernel.process(req))
     approval_id = str(response.approval_id)
 
-    list_result = runner.invoke(cli, ['approval-list', '--limit', '5'])
+    list_result = runner.invoke(cli, ['approval-list', '--limit', '5', '--approved', 'pending'])
     assert list_result.exit_code == 0
     assert 'Approval Requests' in list_result.output
 
-    show_result = runner.invoke(cli, ['approval-show', approval_id])
+    show_result = runner.invoke(cli, ['approval-show', approval_id, '--json'])
     assert show_result.exit_code == 0
     assert approval_id in show_result.output
 
@@ -38,6 +38,10 @@ def test_approval_management_commands():
     )
     assert approve_result.exit_code == 0
     assert 'Approved' in approve_result.output
+
+    replay_result = runner.invoke(cli, ['approval-replay', approval_id, '--json'])
+    assert replay_result.exit_code == 0
+    assert '"decision": "allow"' in replay_result.output
 
     deny_result = runner.invoke(
         cli,
