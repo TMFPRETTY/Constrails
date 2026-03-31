@@ -4,10 +4,13 @@ Approval workflow support for Constrail.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
+from urllib.request import Request, urlopen
 
+from .config import settings
 from .database import ApprovalRequestModel, SessionLocal
 
 
@@ -46,6 +49,17 @@ class ApprovalService:
             db.add(approval)
             db.commit()
             db.refresh(approval)
+            self._emit_webhook(
+                {
+                    "event": "approval.created",
+                    "approval_id": str(approval.approval_id),
+                    "request_id": str(approval.request_id),
+                    "agent_id": approval.agent_id,
+                    "tool": approval.tool,
+                    "risk_score": approval.risk_score,
+                    "risk_level": approval.risk_level.value if hasattr(approval.risk_level, 'value') else str(approval.risk_level),
+                }
+            )
             return approval
         finally:
             db.close()
@@ -103,6 +117,17 @@ class ApprovalService:
             approval.review_comment = comment
             db.commit()
             db.refresh(approval)
+            self._emit_webhook(
+                {
+                    "event": "approval.approved" if approved else "approval.denied",
+                    "approval_id": str(approval.approval_id),
+                    "request_id": str(approval.request_id),
+                    "agent_id": approval.agent_id,
+                    "tool": approval.tool,
+                    "approver_id": approval.approver_id,
+                    "review_comment": approval.review_comment,
+                }
+            )
             return approval
         finally:
             db.close()
@@ -112,6 +137,22 @@ class ApprovalService:
         if approval is None:
             return None
         return approval.approver_id
+
+    def _emit_webhook(self, payload: dict):
+        if not settings.approval_webhook_url:
+            return
+        req = Request(
+            settings.approval_webhook_url,
+            data=json.dumps(payload).encode('utf-8'),
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+        )
+        try:
+            with urlopen(req, timeout=5):
+                pass
+        except Exception:
+            # Best-effort only for now; approval flow should not fail on webhook delivery.
+            pass
 
 
 _default_approval_service: Optional[ApprovalService] = None

@@ -2,7 +2,6 @@
 Configuration management for Constrail.
 """
 
-import os
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,24 +24,26 @@ class Settings(BaseSettings):
     database_pool_size: int = 5
     database_echo: bool = False
 
-    # Redis (for approval notifications and caching)
+    # Redis
     redis_url: Optional[str] = None
 
     # Security
     secret_key: str = "change-me-in-production"
     token_algorithm: str = "HS256"
     token_expire_minutes: int = 30
+    agent_api_key: str = "dev-agent"
+    admin_api_key: str = "dev-admin"
 
     # Sandbox
-    sandbox_type: str = "dev"  # dev, docker, gvisor, none
-    docker_socket: Optional[str] = None  # defaults to /var/run/docker.sock
+    sandbox_type: str = "dev"
+    docker_socket: Optional[str] = None
     sandbox_image: str = "python:3.11-alpine"
     sandbox_timeout_seconds: int = 300
     sandbox_memory_limit_mb: int = 512
     sandbox_cpu_shares: int = 512
 
     # Policy
-    policy_engine: str = "opa"  # opa, builtin
+    policy_engine: str = "opa"
     opa_url: str = "http://localhost:8181"
     opa_policy_package: str = "constrail"
     policy_dir: str = "./policies"
@@ -63,14 +64,12 @@ class Settings(BaseSettings):
 
     # Anomaly detection
     anomaly_detection_enabled: bool = True
-    anomaly_burst_threshold: int = 100  # calls per minute
+    anomaly_burst_threshold: int = 100
     anomaly_new_tool_alert: bool = True
 
 
 def get_settings() -> Settings:
-    """Return the settings singleton."""
     return Settings()
 
 
-# Global settings instance
 settings = get_settings()

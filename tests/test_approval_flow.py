@@ -4,7 +4,8 @@ from constrail.kernel import app
 
 
 client = TestClient(app)
-HEADERS = {'X-API-Key': 'dev-agent'}
+HEADERS = {'X-API-Key': 'dev-admin'}
+AGENT_HEADERS = {'X-API-Key': 'dev-agent'}
 
 
 def test_approval_request_lifecycle():
@@ -14,7 +15,7 @@ def test_approval_request_lifecycle():
         'context': {'goal': 'approval flow test'},
     }
 
-    create_response = client.post('/v1/action', json=payload, headers=HEADERS)
+    create_response = client.post('/v1/action', json=payload, headers=AGENT_HEADERS)
     assert create_response.status_code == 200
     body = create_response.json()
     assert body['decision'] == 'approval_required'
@@ -30,6 +31,7 @@ def test_approval_request_lifecycle():
     get_response = client.get(f'/v1/approval/{approval_id}', headers=HEADERS)
     assert get_response.status_code == 200
     assert get_response.json()['tool'] == 'exec'
+    assert get_response.json()['status'] == 'pending'
 
     approve_response = client.post(
         f'/v1/approval/{approval_id}/approve',
@@ -38,6 +40,7 @@ def test_approval_request_lifecycle():
     )
     assert approve_response.status_code == 200
     assert approve_response.json()['approved'] is True
+    assert approve_response.json()['status'] == 'approved'
 
     replay_response = client.post(f'/v1/approval/{approval_id}/replay', headers=HEADERS)
     assert replay_response.status_code == 200

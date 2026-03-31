@@ -31,9 +31,16 @@ class ApprovalRequestResponse(BaseModel):
     reviewed_at: Optional[datetime] = None
     review_comment: Optional[str] = None
     replay_url: Optional[str] = None
+    status: str
 
     @classmethod
     def from_db(cls, row):
+        if row.approved is True:
+            status = 'approved'
+        elif row.approved is False:
+            status = 'denied'
+        else:
+            status = 'pending'
         return cls(
             approval_id=row.approval_id,
             request_id=row.request_id,
@@ -49,4 +56,5 @@ class ApprovalRequestResponse(BaseModel):
             reviewed_at=row.reviewed_at,
             review_comment=row.review_comment,
             replay_url=f"/v1/approval/{row.approval_id}/replay" if row.approved is True else None,
+            status=status,
         )

@@ -32,10 +32,22 @@ def ensure_runtime_ready():
 
 
 
-def authenticate_request(request: Request) -> str:
+def authenticate_agent_request(request: Request) -> str:
     api_key = request.headers.get("X-API-Key")
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API key")
+    if api_key != settings.agent_api_key and api_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid agent API key")
+    return api_key
+
+
+
+def authenticate_admin_request(request: Request) -> str:
+    api_key = request.headers.get("X-API-Key")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Missing API key")
+    if api_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Admin API key required")
     return api_key
 
 
@@ -47,23 +59,23 @@ async def health():
 
 @app.post("/v1/action", response_model=ActionResponse)
 async def execute_action(
-    request: ActionRequest, auth_token: str = Depends(authenticate_request)
+    request: ActionRequest, auth_token: str = Depends(authenticate_agent_request)
 ):
     ensure_runtime_ready()
-    request.agent.agent_id = auth_token
+    request.agent.agent_id = settings.agent_api_key if auth_token == settings.agent_api_key else request.agent.agent_id
     kernel = await get_kernel()
     return await kernel.process(request)
 
 
 @app.get("/v1/approval", response_model=list[ApprovalRequestResponse])
-async def list_approvals(auth_token: str = Depends(authenticate_request)):
+async def list_approvals(auth_token: str = Depends(authenticate_admin_request)):
     ensure_runtime_ready()
     service = get_approval_service()
     return [ApprovalRequestResponse.from_db(row) for row in service.list_requests()]
 
 
 @app.get("/v1/approval/{approval_id}", response_model=ApprovalRequestResponse)
-async def get_approval(approval_id: UUID, auth_token: str = Depends(authenticate_request)):
+async def get_approval(approval_id: UUID, auth_token: str = Depends(authenticate_admin_request)):
     ensure_runtime_ready()
     service = get_approval_service()
     row = service.get_request(approval_id)
@@ -76,7 +88,7 @@ async def get_approval(approval_id: UUID, auth_token: str = Depends(authenticate
 async def approve_request(
     approval_id: UUID,
     body: ApprovalDecisionRequest,
-    auth_token: str = Depends(authenticate_request),
+    auth_token: str = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
     service = get_approval_service()
@@ -90,7 +102,7 @@ async def approve_request(
 async def deny_request(
     approval_id: UUID,
     body: ApprovalDecisionRequest,
-    auth_token: str = Depends(authenticate_request),
+    auth_token: str = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
     service = get_approval_service()
@@ -103,7 +115,7 @@ async def deny_request(
 @app.post("/v1/approval/{approval_id}/replay", response_model=ActionResponse)
 async def replay_approved_request(
     approval_id: UUID,
-    auth_token: str = Depends(authenticate_request),
+    auth_token: str = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
     kernel = await get_kernel()
@@ -122,7 +134,7 @@ async def list_audit_records(
     decision: str | None = None,
     approval_id: UUID | None = None,
     sandbox_id: str | None = None,
-    auth_token: str = Depends(authenticate_request),
+    auth_token: str = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
     db = SessionLocal()
@@ -138,7 +150,6 @@ async def list_audit_records(
             query = query.filter(AuditRecordModel.approval_id == approval_id)
         if sandbox_id:
             query = query.filter(AuditRecordModel.sandbox_id == sandbox_id)
-
         rows = query.order_by(AuditRecordModel.start_time.desc()).offset(offset).limit(limit).all()
         return [AuditRecordResponse.from_db(row) for row in rows]
     finally:
@@ -146,7 +157,7 @@ async def list_audit_records(
 
 
 @app.get("/v1/admin/audit/{request_id}", response_model=AuditRecordResponse)
-async def get_audit_record(request_id: UUID, auth_token: str = Depends(authenticate_request)):
+async def get_audit_record(request_id: UUID, auth_token: str = Depends(authenticate_admin_request)):
     ensure_runtime_ready()
     db = SessionLocal()
     try:
@@ -167,7 +178,7 @@ async def list_sandbox_executions(
     executor: str | None = None,
     status: str | None = None,
     approval_id: UUID | None = None,
-    auth_token: str = Depends(authenticate_request),
+    auth_token: str = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
     db = SessionLocal()
@@ -183,7 +194,6 @@ async def list_sandbox_executions(
             query = query.filter(SandboxExecutionModel.status == status)
         if approval_id:
             query = query.filter(SandboxExecutionModel.approval_id == approval_id)
-
         rows = query.order_by(SandboxExecutionModel.created_at.desc()).offset(offset).limit(limit).all()
         return [SandboxExecutionResponse.from_db(row) for row in rows]
     finally:
@@ -191,7 +201,7 @@ async def list_sandbox_executions(
 
 
 @app.get("/v1/admin/sandbox/{sandbox_id}", response_model=SandboxExecutionResponse)
-async def get_sandbox_execution(sandbox_id: str, auth_token: str = Depends(authenticate_request)):
+async def get_sandbox_execution(sandbox_id: str, auth_token: str = Depends(authenticate_admin_request)):
     ensure_runtime_ready()
     db = SessionLocal()
     try:
@@ -207,7 +217,7 @@ async def get_sandbox_execution(sandbox_id: str, auth_token: str = Depends(authe
 async def list_capability_manifests(
     agent_id: str | None = None,
     active: bool | None = None,
-    auth_token: str = Depends(authenticate_request),
+    auth_token: str = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
     store = get_capability_store()
