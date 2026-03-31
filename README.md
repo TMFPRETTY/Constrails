@@ -21,21 +21,22 @@ Available today:
 - capability-based allow/deny checks
 - heuristic risk scoring with bootstrap risk profiles
 - policy evaluation with built-in fallback when OPA is unavailable
+- sample OPA policy assets and package layout under `policies/rego/`
 - tool broker with filesystem, HTTP, and exec adapters
 - approval request lifecycle and approval API endpoints
 - local SQLite-backed audit, approval, and sandbox execution persistence for development
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
-- opt-in Docker sandbox executor path
+- Docker sandbox path verified on host and hardened for safer execution defaults
 - a first-class `constrail` CLI entrypoint
 - read-only admin inspection endpoints for audit and sandbox history
 - automated test coverage for the current MVP spine
 
 Still under active development:
 - production-grade approval UX
-- verified production-grade containerized sandbox execution defaults
+- verified production-grade containerized sandbox execution defaults for broader deployment targets
 - richer multi-tenant capability lifecycle management
-- live OPA policy bundle management
+- deeper OPA policy coverage beyond the sample bundle
 - broader package distribution ergonomics
 
 ## Why Constrails
@@ -73,7 +74,7 @@ Core components in this repository:
 
 ```text
 src/constrail/           application code
-policies/                bootstrap capability and risk profiles
+policies/                bootstrap capability profiles, risk profiles, and OPA policy assets
 tests/                   supported automated tests
 archive/obsolete-tests/  archived scratch tests kept for reference
 examples/                reserved for future examples
@@ -87,7 +88,8 @@ scripts/                 reserved for future tooling
 Recommended:
 - Python 3.10+
 - a virtual environment
-- Docker (optional, for opt-in container sandbox execution)
+- Docker (optional, for sandboxed command execution)
+- OPA (optional, for live policy evaluation)
 
 ### Option 1: Local checkout with editable install
 
@@ -128,7 +130,7 @@ python -m constrail.cli --help
 
 ## CLI Usage
 
-Constrails now provides a first CLI surface for local development and service management.
+Constrails provides a CLI for local development and basic operational workflows.
 
 ### Initialize the database
 
@@ -154,15 +156,19 @@ constrail serve --host 127.0.0.1 --port 8011 --reload
 constrail doctor
 ```
 
-### List recent audit records
+### Approval management
+
+```bash
+constrail approval-list --limit 10
+constrail approval-show <approval_id>
+constrail approval-approve <approval_id> --approver tmfpretty --comment "approved"
+constrail approval-deny <approval_id> --approver tmfpretty --comment "denied"
+```
+
+### Audit and sandbox inspection
 
 ```bash
 constrail audit-list --limit 10
-```
-
-### List recent sandbox executions
-
-```bash
 constrail sandbox-list --limit 10
 ```
 
@@ -171,6 +177,7 @@ If you are running without editable install, use the module form:
 ```bash
 PYTHONPATH=src python -m constrail.cli doctor
 PYTHONPATH=src python -m constrail.cli init-db
+PYTHONPATH=src python -m constrail.cli approval-list --limit 10
 PYTHONPATH=src python -m constrail.cli audit-list --limit 10
 PYTHONPATH=src python -m constrail.cli sandbox-list --limit 10
 PYTHONPATH=src python -m constrail.cli serve --host 127.0.0.1 --port 8011
@@ -198,19 +205,54 @@ export SANDBOX_TYPE=docker
 export DOCKER_SOCKET=unix:///var/run/docker.sock
 ```
 
-If Docker is not running or not reachable, keep the default dev sandbox.
+### Optional OPA selection
+
+If OPA is available, you can point Constrails at a live policy server:
+
+```bash
+export OPA_URL=http://localhost:8181
+export OPA_POLICY_PACKAGE=constrail
+opa run --server ./policies/rego
+```
+
+If OPA is not available, Constrails falls back to its built-in development policy logic.
 
 ## Bootstrap policy files
 
 Included bootstrap files:
 - `policies/capabilities/dev-agent.json`
 - `policies/tool_risk_profiles.json`
+- `policies/rego/constrail/allow.rego`
+- `policies/examples/input-example.json`
 
-The included `dev-agent` manifest supports local development and demonstrates:
+The included assets demonstrate:
 - scoped filesystem access
 - constrained HTTP destinations
 - constrained command execution
 - approval-required handling for risky tools
+- a sample OPA package layout and input shape
+
+## Operator workflow example
+
+A typical local development workflow looks like this:
+
+1. initialize the database
+2. start the API
+3. submit a request that requires approval
+4. inspect pending approvals
+5. approve or deny the request
+6. inspect audit history and sandbox execution history
+
+Example:
+
+```bash
+constrail init-db
+constrail serve --host 127.0.0.1 --port 8011
+# in another shell:
+constrail approval-list --limit 10
+constrail audit-list --limit 10
+constrail sandbox-list --limit 10
+```
 
 ## Quick Start
 
@@ -328,6 +370,8 @@ Current test coverage includes:
 - audit and sandbox provenance linkage for approved replays
 - admin inspection endpoints
 - CLI command surface
+- approval management CLI
+- policy engine fallback and local explanation behavior
 
 ## Safety Note
 

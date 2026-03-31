@@ -1,0 +1,25 @@
+{
+  "input": {
+    "request": {
+      "agent": {
+        "agent_id": "dev-agent",
+        "trust_level": 0.8
+      },
+      "call": {
+        "tool": "read_file",
+        "parameters": {
+          "path": "README.md"
+        }
+      },
+      "context": {
+        "goal": "read the project readme"
+      }
+    },
+    "risk": {
+      "score": 0.1,
+      "level": "low",
+      "factors": ["filesystem_read"],
+      "explanation": "Low-risk read operation"
+    }
+  }
+}
