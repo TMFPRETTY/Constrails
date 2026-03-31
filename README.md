@@ -31,6 +31,7 @@ Available today:
 - a first-class `constrail` CLI entrypoint
 - read-only admin inspection endpoints for audit and sandbox history
 - filtered admin queries and JSON CLI output for operational workflows
+- deployment examples for Docker Compose + OPA sidecar flow
 - automated test coverage for the current MVP spine
 
 Still under active development:
@@ -76,6 +77,7 @@ Core components in this repository:
 ```text
 src/constrail/           application code
 policies/                bootstrap capability profiles, risk profiles, and OPA policy assets
+deploy/                  deployment examples and environment templates
 tests/                   supported automated tests
 archive/obsolete-tests/  archived scratch tests kept for reference
 examples/                reserved for future examples
@@ -89,7 +91,7 @@ scripts/                 reserved for future tooling
 Recommended:
 - Python 3.10+
 - a virtual environment
-- Docker (optional, for sandboxed command execution)
+- Docker (optional, for sandboxed command execution and Compose deployment)
 - OPA (optional, for live policy evaluation)
 
 ### Option 1: Local checkout with editable install
@@ -172,6 +174,27 @@ opa run --server ./policies/rego
 ```
 
 If OPA is not available, Constrails falls back to its built-in development policy logic.
+
+## Deployment examples
+
+A starter deployment example is included under:
+
+- `deploy/compose/docker-compose.yml`
+
+This stack demonstrates:
+- Constrails API service
+- OPA sidecar service
+- Compose-based environment configuration via `deploy/compose/.env.example`
+
+Quick start:
+
+```bash
+cd deploy/compose
+cp .env.example .env
+docker compose up --build
+```
+
+See `deploy/README.md` for details.
 
 ## CLI Usage
 

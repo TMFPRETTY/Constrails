@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  constrails:
+    image: python:3.11-slim
+    working_dir: /app
+    command: >
+      sh -lc "pip install -e . && constrail serve --host 0.0.0.0 --port 8000"
+    volumes:
+      - ../../:/app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - opa
+
+  opa:
+    image: openpolicyagent/opa:latest
+    command:
+      - run
+      - --server
+      - /policies/rego
+    volumes:
+      - ../../policies:/policies:ro
+    ports:
+      - "8181:8181"
