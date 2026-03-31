@@ -37,6 +37,8 @@ Available today:
 - read-only admin inspection endpoints for audit and sandbox history
 - filtered admin queries and JSON CLI output for operational workflows
 - deployment examples for Docker Compose + OPA sidecar flow
+- basic CI workflow for test automation
+- application Dockerfile for containerized startup
 - automated test coverage for the current MVP spine
 
 Still under active development:
@@ -87,6 +89,7 @@ tests/                   supported automated tests
 archive/obsolete-tests/  archived scratch tests kept for reference
 examples/                reserved for future examples
 scripts/                 reserved for future tooling
+.github/workflows/       CI workflow definitions
 ```
 
 ## Installation
@@ -134,6 +137,20 @@ Then run the CLI module directly:
 
 ```bash
 python -m constrail.cli --help
+```
+
+### Container build
+
+A basic application image can be built from the included Dockerfile:
+
+```bash
+docker build -t constrails:alpha .
+```
+
+Run it:
+
+```bash
+docker run --rm -p 8000:8000 constrails:alpha
 ```
 
 ## Configuration
