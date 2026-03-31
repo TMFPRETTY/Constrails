@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from uuid import UUID
 
 import click
@@ -31,6 +32,7 @@ console = Console()
 def cli():
     pass
 
+# ... existing commands omitted in this rewrite target for brevity in this patch? no, keep full file
 
 @cli.command("version", help="Show the installed Constrail version.")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
@@ -462,6 +464,27 @@ def approval_drain_outbox_command(limit: int, as_json: bool):
         click.echo(json.dumps(payload, indent=2))
         return
     console.print_json(json.dumps(payload))
+
+
+@cli.command("approval-run-worker", help="Run a bounded approval outbox worker loop.")
+@click.option("--cycles", default=3, type=int, help="Number of polling cycles to run.")
+@click.option("--sleep-seconds", default=1.0, type=float, help="Sleep between cycles.")
+@click.option("--limit", default=20, type=int, help="Maximum outbox items to process per cycle.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def approval_run_worker_command(cycles: int, sleep_seconds: float, limit: int, as_json: bool):
+    init_db()
+    service = get_approval_service()
+    totals = {'cycles': cycles, 'processed': 0, 'delivered': 0}
+    for cycle in range(cycles):
+        result = service.drain_outbox(limit=limit)
+        totals['processed'] += result['processed']
+        totals['delivered'] += result['delivered']
+        if cycle < cycles - 1:
+            time.sleep(sleep_seconds)
+    if as_json:
+        click.echo(json.dumps(totals, indent=2))
+        return
+    console.print_json(json.dumps(totals))
 
 
 @cli.command("approval-show", help="Show a single approval request.")

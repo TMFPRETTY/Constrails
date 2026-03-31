@@ -50,6 +50,10 @@ def test_approval_management_commands(monkeypatch):
     assert drain_result.exit_code == 0
     assert '"processed"' in drain_result.output
 
+    worker_result = runner.invoke(cli, ['approval-run-worker', '--cycles', '2', '--sleep-seconds', '0', '--limit', '5', '--json'])
+    assert worker_result.exit_code == 0
+    assert '"cycles": 2' in worker_result.output
+
     list_json_result = runner.invoke(cli, ['approval-list', '--limit', '5', '--json'])
     assert list_json_result.exit_code == 0
     assert '"webhook_delivery_status"' in list_json_result.output
