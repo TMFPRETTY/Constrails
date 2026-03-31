@@ -52,3 +52,6 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+
+# Local development artifacts
+constrail-dev.db
