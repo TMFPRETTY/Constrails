@@ -67,6 +67,8 @@ class ApprovalRequestModel(Base):
     risk_score = Column(Float, nullable=False)
     risk_level = Column(SQLEnum(RiskLevel), nullable=False)
     policy_evaluation = Column(JSON, nullable=False)
+    capability_fingerprint = Column(String, nullable=True)
+    policy_mode = Column(String, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
     approved = Column(Boolean, nullable=True, default=None)

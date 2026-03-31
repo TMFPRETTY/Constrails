@@ -5,7 +5,7 @@ Approval workflow support for Constrail.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 from urllib.request import Request, urlopen
@@ -26,6 +26,8 @@ class ApprovalService:
         risk_score: float,
         risk_level: str,
         policy_evaluation: dict,
+        capability_fingerprint: str | None = None,
+        policy_mode: str | None = None,
     ) -> ApprovalRequestModel:
         db = SessionLocal()
         try:
@@ -45,6 +47,9 @@ class ApprovalService:
                 risk_score=risk_score,
                 risk_level=risk_level.upper(),
                 policy_evaluation=policy_evaluation,
+                capability_fingerprint=capability_fingerprint,
+                policy_mode=policy_mode,
+                expires_at=datetime.utcnow() + timedelta(minutes=settings.approval_expire_minutes) if settings.approval_expire_minutes > 0 else None,
                 webhook_delivery_status='not_configured' if not settings.approval_webhook_url else 'pending',
                 webhook_delivery_attempts=0,
             )

@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     sandbox_type: str = "dev"
     sandbox_mode: str = "development"
+    sandbox_strict_mode: bool = False
     docker_socket: Optional[str] = None
     sandbox_image: str = "python:3.11-alpine"
     sandbox_timeout_seconds: int = 300
@@ -48,6 +49,7 @@ class Settings(BaseSettings):
     sandbox_tmpfs_size_mb: int = 64
 
     policy_engine: str = "opa"
+    policy_availability_mode: str = "degraded"
     opa_url: str = "http://localhost:8181"
     opa_policy_package: str = "constrail"
     policy_dir: str = "./policies"
@@ -65,6 +67,7 @@ class Settings(BaseSettings):
     approval_webhook_max_attempts: int = 3
     approval_outbox_auto_drain: bool = False
     approval_outbox_auto_drain_limit: int = 20
+    approval_expire_minutes: int = 60
 
     anomaly_detection_enabled: bool = True
     anomaly_burst_threshold: int = 100

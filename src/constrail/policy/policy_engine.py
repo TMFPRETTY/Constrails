@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 import httpx
 
 from ..models import ActionRequest, RiskAssessment, PolicyEvaluation, Decision
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,20 @@ class PolicyEngine:
             try:
                 return await self._evaluate_opa(input_data)
             except Exception as e:
-                logger.warning("OPA evaluation failed: %s, falling back to simple policy", e)
+                mode = settings.policy_availability_mode
+                logger.warning("OPA evaluation failed: %s, mode=%s", e, mode)
+                if mode == 'strict':
+                    return PolicyEvaluation(
+                        decision=Decision.DENY,
+                        rule_ids=['strict_policy_unavailable'],
+                        message='OPA unavailable in strict mode',
+                    )
+                if mode == 'degraded' and request.call.tool in {'exec', 'delete_file', 'http_request'}:
+                    return PolicyEvaluation(
+                        decision=Decision.SANDBOX,
+                        rule_ids=['degraded_policy_unavailable_high_risk'],
+                        message='OPA unavailable, high-risk action forced into sandbox/degraded mode',
+                    )
 
         return self._evaluate_simple(request, risk)
 
@@ -148,6 +162,7 @@ class PolicyEngine:
         return {
             "opa_url": self.opa_url,
             "policy_package": self.policy_package,
+            "policy_availability_mode": settings.policy_availability_mode,
             "rego_files": rego_files,
             "fallback_mode": True,
             "policy_features": [
@@ -167,7 +182,6 @@ _default_policy_engine: Optional[PolicyEngine] = None
 def get_policy_engine() -> PolicyEngine:
     global _default_policy_engine
     if _default_policy_engine is None:
-        from ..config import settings
         _default_policy_engine = PolicyEngine(
             opa_url=settings.opa_url,
             policy_package=settings.opa_policy_package,
