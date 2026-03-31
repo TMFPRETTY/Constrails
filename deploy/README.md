@@ -25,6 +25,7 @@ After the stack is up, validate the operator surface:
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m constrail.cli doctor --json
+PYTHONPATH=src .venv/bin/python -m constrail.cli sandbox-validate --json
 PYTHONPATH=src .venv/bin/python -m constrail.cli auth-status --json
 PYTHONPATH=src .venv/bin/python -m constrail.cli capability-list --json
 PYTHONPATH=src .venv/bin/python -m constrail.cli approval-list --limit 5 --json
@@ -45,8 +46,12 @@ For more serious deployment, move toward:
 - pinned sandbox images by digest
 - readonly workspace mounts where possible
 - isolated sandbox networking by default
+- explicit memory and timeout limits
+- tmpfs-backed writable scratch space
 - externalized state storage instead of local development paths
 - stronger secret/auth handling than static development keys
+
+Use `constrail sandbox-validate --json` as a posture gate before treating a configuration as closer to production-ready.
 
 ## Notes
 

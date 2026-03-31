@@ -168,6 +168,7 @@ def doctor_command(as_json: bool):
         "sandbox_require_image_digest": sandbox_info["sandbox_require_image_digest"],
         "sandbox_allow_host_network": sandbox_info["sandbox_allow_host_network"],
         "sandbox_workspace_mount_readonly": sandbox_info["sandbox_workspace_mount_readonly"],
+        "checks": sandbox_info["checks"],
         "production_ready": sandbox_info["production_ready"],
         "warnings": sandbox_info["warnings"],
         "policy_dir": settings.policy_dir,

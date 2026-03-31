@@ -198,24 +198,41 @@ def sandbox_health() -> dict[str, Any]:
     docker_path = shutil.which('docker')
     docker_available = docker_path is not None
     image_has_digest = '@sha256:' in settings.sandbox_image
-    production_ready = (
-        sandbox_type == 'docker'
-        and docker_available
-        and settings.sandbox_workspace_mount_readonly
-        and not settings.sandbox_allow_host_network
-        and (image_has_digest or not settings.sandbox_require_image_digest)
-    )
+    docker_host = settings.docker_socket or os.environ.get('DOCKER_HOST')
+
+    checks = {
+        'docker_mode_enabled': sandbox_type == 'docker',
+        'docker_cli_available': docker_available,
+        'image_pinned_by_digest': image_has_digest or not settings.sandbox_require_image_digest,
+        'workspace_mount_readonly': settings.sandbox_workspace_mount_readonly,
+        'host_network_disabled': not settings.sandbox_allow_host_network,
+        'tmpfs_configured': settings.sandbox_tmpfs_size_mb > 0,
+        'memory_limit_configured': settings.sandbox_memory_limit_mb > 0,
+        'timeout_configured': settings.sandbox_timeout_seconds > 0,
+        'docker_socket_configured': bool(docker_host) or sandbox_type != 'docker',
+    }
+
+    production_ready = all(checks.values())
     warnings = []
-    if sandbox_type != 'docker':
+    if not checks['docker_mode_enabled']:
         warnings.append('sandbox_type is not docker')
-    if not docker_available:
+    if not checks['docker_cli_available']:
         warnings.append('docker CLI not found')
-    if not settings.sandbox_workspace_mount_readonly:
-        warnings.append('workspace mount is writable')
-    if settings.sandbox_allow_host_network:
-        warnings.append('sandbox network is not isolated')
-    if settings.sandbox_require_image_digest and not image_has_digest:
+    if not checks['image_pinned_by_digest']:
         warnings.append('sandbox image is not pinned by digest')
+    if not checks['workspace_mount_readonly']:
+        warnings.append('workspace mount is writable')
+    if not checks['host_network_disabled']:
+        warnings.append('sandbox network is not isolated')
+    if not checks['tmpfs_configured']:
+        warnings.append('sandbox tmpfs is not configured')
+    if not checks['memory_limit_configured']:
+        warnings.append('sandbox memory limit is not configured')
+    if not checks['timeout_configured']:
+        warnings.append('sandbox timeout is not configured')
+    if not checks['docker_socket_configured']:
+        warnings.append('docker socket/host is not configured')
+
     return {
         'sandbox_type': sandbox_type,
         'sandbox_mode': settings.sandbox_mode,
@@ -225,9 +242,12 @@ def sandbox_health() -> dict[str, Any]:
         'sandbox_allow_host_network': settings.sandbox_allow_host_network,
         'sandbox_workspace_mount_readonly': settings.sandbox_workspace_mount_readonly,
         'sandbox_tmpfs_size_mb': settings.sandbox_tmpfs_size_mb,
+        'sandbox_memory_limit_mb': settings.sandbox_memory_limit_mb,
+        'sandbox_timeout_seconds': settings.sandbox_timeout_seconds,
         'docker_cli_found': docker_available,
         'docker_path': docker_path,
-        'docker_socket': settings.docker_socket or os.environ.get('DOCKER_HOST'),
+        'docker_socket': docker_host,
+        'checks': checks,
         'production_ready': production_ready,
         'warnings': warnings,
     }

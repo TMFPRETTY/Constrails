@@ -44,11 +44,23 @@ def test_none_sandbox_returns_none():
 
 
 def test_sandbox_health_reports_posture_flags():
-    with TempSetting('sandbox_type', 'docker'), TempSetting('sandbox_workspace_mount_readonly', False), TempSetting('sandbox_allow_host_network', True), TempSetting('sandbox_require_image_digest', True), TempSetting('sandbox_image', 'python:3.11-alpine'):
+    with (
+        TempSetting('sandbox_type', 'docker'),
+        TempSetting('sandbox_workspace_mount_readonly', False),
+        TempSetting('sandbox_allow_host_network', True),
+        TempSetting('sandbox_require_image_digest', True),
+        TempSetting('sandbox_image', 'python:3.11-alpine'),
+        TempSetting('sandbox_memory_limit_mb', 0),
+        TempSetting('sandbox_timeout_seconds', 0),
+        TempSetting('docker_socket', None),
+    ):
         health = sandbox_health()
         assert health['sandbox_type'] == 'docker'
         assert health['sandbox_require_image_digest'] is True
         assert health['sandbox_allow_host_network'] is True
         assert health['sandbox_workspace_mount_readonly'] is False
         assert health['production_ready'] is False
+        assert health['checks']['docker_mode_enabled'] is True
+        assert health['checks']['memory_limit_configured'] is False
+        assert health['checks']['timeout_configured'] is False
         assert len(health['warnings']) >= 1
