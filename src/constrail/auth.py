@@ -13,7 +13,7 @@ import secrets
 from jose import JWTError, jwt
 
 from .config import settings
-from .database import RevokedTokenModel, SessionLocal
+from .database import RevokedTokenModel, SessionLocal, SigningKeyModel
 
 
 Role = Literal['agent', 'admin']
@@ -28,6 +28,7 @@ class AuthPrincipal:
     subject: Optional[str] = None
     auth_type: str = 'api_key'
     token_id: Optional[str] = None
+    key_id: Optional[str] = None
 
     @property
     def scoped(self) -> bool:
@@ -40,6 +41,39 @@ class AuthPrincipal:
 
 
 class AuthService:
+    def __init__(self):
+        self._ensure_key_registry()
+
+    def _ensure_key_registry(self):
+        db = SessionLocal()
+        try:
+            active = db.query(SigningKeyModel).filter(SigningKeyModel.status == 'active').first()
+            if active is None:
+                db.add(SigningKeyModel(key_id='key-current', status='active'))
+                if settings.previous_secret_key:
+                    db.add(SigningKeyModel(key_id='key-previous', status='previous'))
+                db.commit()
+        finally:
+            db.close()
+
+    def key_summary(self) -> dict[str, Any]:
+        db = SessionLocal()
+        try:
+            rows = db.query(SigningKeyModel).all()
+            return {
+                'keys': [
+                    {
+                        'key_id': row.key_id,
+                        'status': row.status,
+                        'created_at': row.created_at.isoformat() if row.created_at else None,
+                        'retired_at': row.retired_at.isoformat() if row.retired_at else None,
+                    }
+                    for row in rows
+                ]
+            }
+        finally:
+            db.close()
+
     def authenticate(self, credential: str) -> AuthPrincipal | None:
         principal = self.authenticate_bearer_token(credential)
         if principal is not None:
@@ -81,6 +115,7 @@ class AuthService:
         exp = now + timedelta(minutes=expires_minutes or settings.token_expire_minutes)
         token_id = f"tok-{int(now.timestamp())}-{subject}"
         payload = {
+            'kid': 'key-current',
             'jti': token_id,
             'role': role,
             'sub': subject,
@@ -126,6 +161,16 @@ class AuthService:
         new_secret = secrets.token_urlsafe(32)
         settings.previous_secret_key = old_secret
         settings.secret_key = new_secret
+        db = SessionLocal()
+        try:
+            current = db.query(SigningKeyModel).filter(SigningKeyModel.status == 'active').first()
+            if current is not None:
+                current.status = 'previous'
+                current.retired_at = datetime.utcnow()
+            db.add(SigningKeyModel(key_id=f'key-{int(datetime.utcnow().timestamp())}', status='active'))
+            db.commit()
+        finally:
+            db.close()
         return {'rotated': True, 'previous_secret_preserved': True, 'new_secret': new_secret}
 
     def is_token_revoked(self, token_id: str | None) -> bool:
@@ -138,13 +183,13 @@ class AuthService:
         finally:
             db.close()
 
-    def _decode_with_secrets(self, token: str) -> dict[str, Any] | None:
-        candidate_secrets = [settings.secret_key]
+    def _decode_with_secrets(self, token: str) -> tuple[dict[str, Any] | None, str | None]:
+        candidate_secrets = [('key-current', settings.secret_key)]
         if settings.previous_secret_key:
-            candidate_secrets.append(settings.previous_secret_key)
-        for secret in candidate_secrets:
+            candidate_secrets.append(('key-previous', settings.previous_secret_key))
+        for key_id, secret in candidate_secrets:
             try:
-                return jwt.decode(
+                payload = jwt.decode(
                     token,
                     secret,
                     algorithms=[settings.token_algorithm],
@@ -152,14 +197,15 @@ class AuthService:
                     issuer=settings.token_issuer,
                     options={'verify_aud': True, 'verify_iss': True},
                 )
+                return payload, payload.get('kid') or key_id
             except JWTError:
                 continue
-        return None
+        return None, None
 
     def authenticate_bearer_token(self, token: str) -> AuthPrincipal | None:
         if not settings.secret_key:
             return None
-        payload = self._decode_with_secrets(token)
+        payload, key_id = self._decode_with_secrets(token)
         if payload is None:
             return None
 
@@ -179,6 +225,7 @@ class AuthService:
             subject=payload.get('agent_id') or sub,
             auth_type='bearer',
             token_id=token_id,
+            key_id=key_id,
         )
 
 

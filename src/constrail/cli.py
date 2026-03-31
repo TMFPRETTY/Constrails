@@ -70,6 +70,16 @@ def auth_status_command(as_json: bool):
     console.print(table)
 
 
+@cli.command("auth-keys", help="Show signing key registry state.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def auth_keys_command(as_json: bool):
+    payload = get_auth_service().key_summary()
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
+
+
 @cli.command("auth-mint-token", help="Mint a local bearer token for testing/operator workflows.")
 @click.option("--role", type=click.Choice(["agent", "admin"]), required=True, help="Token role.")
 @click.option("--subject", required=True, help="Token subject.")

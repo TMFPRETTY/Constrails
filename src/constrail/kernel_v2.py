@@ -13,6 +13,7 @@ from .approval import get_approval_service
 from .capability.manager import get_capability_manager
 from .config import settings
 from .database import (
+    ApprovalRequestModel,
     AuditRecordModel,
     Decision as DBDecision,
     RiskLevel as DBRiskLevel,
@@ -222,11 +223,21 @@ class ConstrailKernel:
         return call
 
     async def replay_approved(self, approval_id):
-        approval = self.approval_service.get_request(approval_id)
+        db = SessionLocal()
+        try:
+            approval = (
+                db.query(self.approval_service.get_request(approval_id).__class__)
+                .filter_by(approval_id=approval_id)
+                .first()
+            )
+        finally:
+            db.close()
         if approval is None:
             raise ValueError("Approval request not found")
         if approval.approved is not True:
             raise ValueError("Approval request is not approved")
+        if approval.expires_at is not None and approval.expires_at <= datetime.utcnow():
+            raise ValueError("Approval request expired")
 
         request = ActionRequest(
             agent={"agent_id": approval.agent_id, "trust_level": 0.8},

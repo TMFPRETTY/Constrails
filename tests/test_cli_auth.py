@@ -22,6 +22,13 @@ def test_auth_status_json_command():
 
 
 
+def test_auth_keys_json_command():
+    result = runner.invoke(cli, ['auth-keys', '--json'])
+    assert result.exit_code == 0
+    assert '"keys"' in result.output
+
+
+
 def test_auth_mint_token_json_command():
     result = runner.invoke(
         cli,

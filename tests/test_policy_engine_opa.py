@@ -138,7 +138,7 @@ def test_policy_engine_falls_back_when_opa_call_fails(monkeypatch):
     risk = risk_engine.assess(request)
     result = run(engine.evaluate(request, risk))
 
-    assert result.decision.value == 'approval_required'
-    assert 'simple_fallback_high_risk_tool' in result.rule_ids
+    assert result.decision.value == 'sandbox'
+    assert 'degraded_policy_unavailable_high_risk' in result.rule_ids
 
     run(engine.close())

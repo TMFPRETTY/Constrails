@@ -107,6 +107,15 @@ class RevokedTokenModel(Base):
     expires_at = Column(DateTime, nullable=True)
 
 
+class SigningKeyModel(Base):
+    __tablename__ = "signing_keys"
+
+    key_id = Column(String, primary_key=True)
+    status = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    retired_at = Column(DateTime, nullable=True)
+
+
 class CapabilityManifestModel(Base):
     __tablename__ = "capability_manifests"
 
