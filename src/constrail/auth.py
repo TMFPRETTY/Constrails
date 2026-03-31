@@ -20,6 +20,15 @@ class AuthPrincipal:
     tenant_id: Optional[str] = None
     namespace: Optional[str] = None
 
+    @property
+    def scoped(self) -> bool:
+        return bool(self.tenant_id or self.namespace)
+
+    def allows_agent(self, agent_id: str) -> bool:
+        if not self.scoped:
+            return True
+        return agent_id == settings.agent_api_key
+
 
 class AuthService:
     def authenticate(self, api_key: str) -> AuthPrincipal | None:

@@ -54,6 +54,14 @@ def authenticate_admin_request(request: Request) -> AuthPrincipal:
     return principal
 
 
+
+def enforce_admin_agent_scope(principal: AuthPrincipal, agent_id: str | None):
+    if agent_id is None:
+        return
+    if not principal.allows_agent(agent_id):
+        raise HTTPException(status_code=403, detail="Requested agent is outside admin scope")
+
+
 @app.get("/health")
 async def health():
     ensure_runtime_ready()
@@ -77,7 +85,10 @@ async def execute_action(
 async def list_approvals(principal: AuthPrincipal = Depends(authenticate_admin_request)):
     ensure_runtime_ready()
     service = get_approval_service()
-    return [ApprovalRequestResponse.from_db(row) for row in service.list_requests()]
+    rows = service.list_requests()
+    if principal.scoped:
+        rows = [row for row in rows if principal.allows_agent(row.agent_id)]
+    return [ApprovalRequestResponse.from_db(row) for row in rows]
 
 
 @app.get("/v1/approval/{approval_id}", response_model=ApprovalRequestResponse)
@@ -87,6 +98,8 @@ async def get_approval(approval_id: UUID, principal: AuthPrincipal = Depends(aut
     row = service.get_request(approval_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Approval request not found")
+    if not principal.allows_agent(row.agent_id):
+        raise HTTPException(status_code=403, detail="Approval request is outside admin scope")
     return ApprovalRequestResponse.from_db(row)
 
 
@@ -98,9 +111,12 @@ async def approve_request(
 ):
     ensure_runtime_ready()
     service = get_approval_service()
-    row = service.decide(approval_id, approved=True, approver_id=body.approver_id, comment=body.comment)
-    if row is None:
+    existing = service.get_request(approval_id)
+    if existing is None:
         raise HTTPException(status_code=404, detail="Approval request not found")
+    if not principal.allows_agent(existing.agent_id):
+        raise HTTPException(status_code=403, detail="Approval request is outside admin scope")
+    row = service.decide(approval_id, approved=True, approver_id=body.approver_id, comment=body.comment)
     return ApprovalRequestResponse.from_db(row)
 
 
@@ -112,9 +128,12 @@ async def deny_request(
 ):
     ensure_runtime_ready()
     service = get_approval_service()
-    row = service.decide(approval_id, approved=False, approver_id=body.approver_id, comment=body.comment)
-    if row is None:
+    existing = service.get_request(approval_id)
+    if existing is None:
         raise HTTPException(status_code=404, detail="Approval request not found")
+    if not principal.allows_agent(existing.agent_id):
+        raise HTTPException(status_code=403, detail="Approval request is outside admin scope")
+    row = service.decide(approval_id, approved=False, approver_id=body.approver_id, comment=body.comment)
     return ApprovalRequestResponse.from_db(row)
 
 
@@ -124,6 +143,12 @@ async def replay_approved_request(
     principal: AuthPrincipal = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
+    service = get_approval_service()
+    existing = service.get_request(approval_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Approval request not found")
+    if not principal.allows_agent(existing.agent_id):
+        raise HTTPException(status_code=403, detail="Approval request is outside admin scope")
     kernel = await get_kernel()
     try:
         return await kernel.replay_approved(approval_id)
@@ -143,10 +168,11 @@ async def list_audit_records(
     principal: AuthPrincipal = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
+    enforce_admin_agent_scope(principal, agent_id)
     db = SessionLocal()
     try:
         query = db.query(AuditRecordModel)
-        if principal.tenant_id:
+        if principal.scoped:
             query = query.filter(AuditRecordModel.agent_id == settings.agent_api_key)
         if agent_id:
             query = query.filter(AuditRecordModel.agent_id == agent_id)
@@ -172,6 +198,8 @@ async def get_audit_record(request_id: UUID, principal: AuthPrincipal = Depends(
         row = db.query(AuditRecordModel).filter(AuditRecordModel.request_id == request_id).order_by(AuditRecordModel.start_time.desc()).first()
         if row is None:
             raise HTTPException(status_code=404, detail="Audit record not found")
+        if not principal.allows_agent(row.agent_id):
+            raise HTTPException(status_code=403, detail="Audit record is outside admin scope")
         return AuditRecordResponse.from_db(row)
     finally:
         db.close()
@@ -189,9 +217,12 @@ async def list_sandbox_executions(
     principal: AuthPrincipal = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
+    enforce_admin_agent_scope(principal, agent_id)
     db = SessionLocal()
     try:
         query = db.query(SandboxExecutionModel)
+        if principal.scoped:
+            query = query.filter(SandboxExecutionModel.agent_id == settings.agent_api_key)
         if agent_id:
             query = query.filter(SandboxExecutionModel.agent_id == agent_id)
         if tool:
@@ -216,6 +247,8 @@ async def get_sandbox_execution(sandbox_id: str, principal: AuthPrincipal = Depe
         row = db.query(SandboxExecutionModel).filter(SandboxExecutionModel.sandbox_id == sandbox_id).first()
         if row is None:
             raise HTTPException(status_code=404, detail="Sandbox execution not found")
+        if not principal.allows_agent(row.agent_id):
+            raise HTTPException(status_code=403, detail="Sandbox execution is outside admin scope")
         return SandboxExecutionResponse.from_db(row)
     finally:
         db.close()
@@ -228,6 +261,7 @@ async def list_capability_manifests(
     principal: AuthPrincipal = Depends(authenticate_admin_request),
 ):
     ensure_runtime_ready()
+    enforce_admin_agent_scope(principal, agent_id)
     store = get_capability_store()
     rows = store.list_manifests(
         agent_id=agent_id,
