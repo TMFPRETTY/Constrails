@@ -8,10 +8,11 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 
+from .admin_models import AuditRecordResponse, SandboxExecutionResponse
 from .approval import get_approval_service
 from .approval_models import ApprovalDecisionRequest, ApprovalRequestResponse
 from .config import settings
-from .database import init_db
+from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
 from .kernel_v2 import get_kernel
 from .models import ActionRequest, ActionResponse
 
@@ -112,3 +113,76 @@ async def replay_approved_request(
         return await kernel.replay_approved(approval_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/v1/admin/audit", response_model=list[AuditRecordResponse])
+async def list_audit_records(
+    limit: int = 20,
+    auth_token: str = Depends(authenticate_request),
+):
+    ensure_runtime_ready()
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(AuditRecordModel)
+            .order_by(AuditRecordModel.start_time.desc())
+            .limit(limit)
+            .all()
+        )
+        return [AuditRecordResponse.from_db(row) for row in rows]
+    finally:
+        db.close()
+
+
+@app.get("/v1/admin/audit/{request_id}", response_model=AuditRecordResponse)
+async def get_audit_record(request_id: UUID, auth_token: str = Depends(authenticate_request)):
+    ensure_runtime_ready()
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(AuditRecordModel)
+            .filter(AuditRecordModel.request_id == request_id)
+            .order_by(AuditRecordModel.start_time.desc())
+            .first()
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="Audit record not found")
+        return AuditRecordResponse.from_db(row)
+    finally:
+        db.close()
+
+
+@app.get("/v1/admin/sandbox", response_model=list[SandboxExecutionResponse])
+async def list_sandbox_executions(
+    limit: int = 20,
+    auth_token: str = Depends(authenticate_request),
+):
+    ensure_runtime_ready()
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(SandboxExecutionModel)
+            .order_by(SandboxExecutionModel.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [SandboxExecutionResponse.from_db(row) for row in rows]
+    finally:
+        db.close()
+
+
+@app.get("/v1/admin/sandbox/{sandbox_id}", response_model=SandboxExecutionResponse)
+async def get_sandbox_execution(sandbox_id: str, auth_token: str = Depends(authenticate_request)):
+    ensure_runtime_ready()
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(SandboxExecutionModel)
+            .filter(SandboxExecutionModel.sandbox_id == sandbox_id)
+            .first()
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="Sandbox execution not found")
+        return SandboxExecutionResponse.from_db(row)
+    finally:
+        db.close()

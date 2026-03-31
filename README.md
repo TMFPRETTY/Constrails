@@ -28,6 +28,7 @@ Available today:
 - sandbox-first exec behavior with a development sandbox executor
 - opt-in Docker sandbox executor path
 - a first-class `constrail` CLI entrypoint
+- read-only admin inspection endpoints for audit and sandbox history
 - automated test coverage for the current MVP spine
 
 Still under active development:
@@ -64,6 +65,7 @@ Core components in this repository:
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
 - `src/constrail/approval.py` - approval persistence and state transitions
 - `src/constrail/sandbox.py` - sandbox executor abstraction and implementations
+- `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
 - `src/constrail/database.py` - development database models and session management
 - `src/constrail/cli.py` - CLI entrypoint for local operations
 
@@ -152,11 +154,25 @@ constrail serve --host 127.0.0.1 --port 8011 --reload
 constrail doctor
 ```
 
+### List recent audit records
+
+```bash
+constrail audit-list --limit 10
+```
+
+### List recent sandbox executions
+
+```bash
+constrail sandbox-list --limit 10
+```
+
 If you are running without editable install, use the module form:
 
 ```bash
 PYTHONPATH=src python -m constrail.cli doctor
 PYTHONPATH=src python -m constrail.cli init-db
+PYTHONPATH=src python -m constrail.cli audit-list --limit 10
+PYTHONPATH=src python -m constrail.cli sandbox-list --limit 10
 PYTHONPATH=src python -m constrail.cli serve --host 127.0.0.1 --port 8011
 ```
 
@@ -278,6 +294,19 @@ Example approve payload:
 }
 ```
 
+### Admin inspection
+
+- `GET /v1/admin/audit`
+- `GET /v1/admin/audit/{request_id}`
+- `GET /v1/admin/sandbox`
+- `GET /v1/admin/sandbox/{sandbox_id}`
+
+These endpoints expose read-only visibility into:
+- recent audit records
+- replay provenance
+- approval linkage
+- sandbox execution history
+
 ## Testing
 
 Run the supported suite with the project virtualenv if present:
@@ -297,6 +326,7 @@ Current test coverage includes:
 - exec adapter sandbox behavior
 - sandbox executor selection and replay flow
 - audit and sandbox provenance linkage for approved replays
+- admin inspection endpoints
 - CLI command surface
 
 ## Safety Note

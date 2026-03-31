@@ -5,6 +5,7 @@ Constrail CLI entrypoint.
 from __future__ import annotations
 
 import json
+from uuid import UUID
 
 import click
 import uvicorn
@@ -12,7 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .config import settings
-from .database import init_db
+from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
 from .sandbox import get_sandbox_executor, reset_sandbox_executor
 
 console = Console()
@@ -71,6 +72,68 @@ def doctor_command():
         "sandbox_type": settings.sandbox_type,
         "policy_dir": settings.policy_dir,
     }))
+
+
+@cli.command("audit-list", help="List recent audit records.")
+@click.option("--limit", default=10, type=int, help="Maximum number of rows to show.")
+def audit_list_command(limit: int):
+    init_db()
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(AuditRecordModel)
+            .order_by(AuditRecordModel.start_time.desc())
+            .limit(limit)
+            .all()
+        )
+        table = Table(title="Audit Records")
+        table.add_column("Request ID")
+        table.add_column("Tool")
+        table.add_column("Decision")
+        table.add_column("Agent")
+        table.add_column("Sandbox")
+        for row in rows:
+            table.add_row(
+                str(row.request_id),
+                row.tool,
+                row.final_decision.value if hasattr(row.final_decision, 'value') else str(row.final_decision),
+                row.agent_id,
+                row.sandbox_id or "-",
+            )
+        console.print(table)
+    finally:
+        db.close()
+
+
+@cli.command("sandbox-list", help="List recent sandbox executions.")
+@click.option("--limit", default=10, type=int, help="Maximum number of rows to show.")
+def sandbox_list_command(limit: int):
+    init_db()
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(SandboxExecutionModel)
+            .order_by(SandboxExecutionModel.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        table = Table(title="Sandbox Executions")
+        table.add_column("Sandbox ID")
+        table.add_column("Executor")
+        table.add_column("Status")
+        table.add_column("Tool")
+        table.add_column("Approval ID")
+        for row in rows:
+            table.add_row(
+                row.sandbox_id,
+                row.executor or "-",
+                row.status,
+                row.tool,
+                str(row.approval_id) if row.approval_id else "-",
+            )
+        console.print(table)
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
