@@ -95,11 +95,18 @@ def doctor_command(as_json: bool):
         "policy_engine": settings.policy_engine,
         "opa_url": settings.opa_url,
         "sandbox_type": settings.sandbox_type,
+        "sandbox_mode": settings.sandbox_mode,
         "sandbox_image": settings.sandbox_image,
         "sandbox_executor": executor.__class__.__name__ if executor else None,
         "docker_cli_found": sandbox_info["docker_cli_found"],
         "docker_path": sandbox_info["docker_path"],
         "docker_socket": sandbox_info["docker_socket"],
+        "sandbox_image_has_digest": sandbox_info["sandbox_image_has_digest"],
+        "sandbox_require_image_digest": sandbox_info["sandbox_require_image_digest"],
+        "sandbox_allow_host_network": sandbox_info["sandbox_allow_host_network"],
+        "sandbox_workspace_mount_readonly": sandbox_info["sandbox_workspace_mount_readonly"],
+        "production_ready": sandbox_info["production_ready"],
+        "warnings": sandbox_info["warnings"],
         "policy_dir": settings.policy_dir,
         "auth_mode": 'dual-static-keys-alpha',
     }
@@ -112,7 +119,7 @@ def doctor_command(as_json: bool):
     table.add_column("Setting", style="cyan")
     table.add_column("Value", style="green")
     for key, value in payload.items():
-        table.add_row(key.replace("_", " ").title(), str(value))
+        table.add_row(key.replace("_", " ").title(), json.dumps(value) if isinstance(value, list) else str(value))
 
     console.print(table)
     console.print("\n[bold]Raw config:[/bold]")
@@ -203,7 +210,7 @@ def capability_list_command(agent_id: str | None, active: bool, as_json: bool):
 def capability_create_command(agent_id: str, tenant_id: str | None, namespace: str | None, tools: tuple[str, ...], activate: bool, as_json: bool):
     init_db()
     store = get_capability_store()
-    existing = store.list_manifests(agent_id=agent_id)
+    existing = store.list_manifests(agent_id=agent_id, tenant_id=tenant_id, namespace=namespace)
     next_version = max((row.version for row in existing), default=0) + 1
     row = store.create_manifest(agent_id=agent_id, tenant_id=tenant_id, namespace=namespace, version=next_version, allowed_tools=[{"tool": tool} for tool in tools], active=activate)
     payload = {"id": row.id, "agent_id": row.agent_id, "tenant_id": row.tenant_id, "namespace": row.namespace, "version": row.version, "active": row.active}
@@ -211,6 +218,40 @@ def capability_create_command(agent_id: str, tenant_id: str | None, namespace: s
         click.echo(json.dumps(payload, indent=2))
         return
     console.print(f"[green]Created capability manifest {row.id} (v{row.version})[/green]")
+
+
+@cli.command("capability-update-tools", help="Replace the tool set on an existing capability manifest.")
+@click.argument("manifest_id", type=int)
+@click.option("--tool", "tools", multiple=True, required=True, help="Allowed tool name. Repeat for multiple tools.")
+@click.option("--activate", is_flag=True, default=False, help="Activate this manifest after updating tools.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def capability_update_tools_command(manifest_id: int, tools: tuple[str, ...], activate: bool, as_json: bool):
+    init_db()
+    store = get_capability_store()
+    row = store.update_manifest_tools(manifest_id, allowed_tools=[{"tool": tool} for tool in tools], activate=activate)
+    if row is None:
+        raise click.ClickException("Capability manifest not found")
+    payload = {"id": row.id, "agent_id": row.agent_id, "tenant_id": row.tenant_id, "namespace": row.namespace, "version": row.version, "active": row.active, "allowed_tools": row.allowed_tools}
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print(f"[green]Updated capability manifest {row.id}[/green]")
+
+
+@cli.command("capability-activate", help="Activate a capability manifest and deactivate sibling manifests in scope.")
+@click.argument("manifest_id", type=int)
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def capability_activate_command(manifest_id: int, as_json: bool):
+    init_db()
+    store = get_capability_store()
+    row = store.activate_manifest(manifest_id)
+    if row is None:
+        raise click.ClickException("Capability manifest not found")
+    payload = {"id": row.id, "agent_id": row.agent_id, "tenant_id": row.tenant_id, "namespace": row.namespace, "version": row.version, "active": row.active}
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print(f"[green]Activated capability manifest {row.id}[/green]")
 
 
 @cli.command("capability-deactivate", help="Deactivate a capability manifest.")

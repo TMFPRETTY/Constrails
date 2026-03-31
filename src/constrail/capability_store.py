@@ -80,6 +80,46 @@ class CapabilityStore:
         finally:
             db.close()
 
+    def activate_manifest(self, manifest_id: int) -> Optional[CapabilityManifestModel]:
+        db = SessionLocal()
+        try:
+            row = db.query(CapabilityManifestModel).filter(CapabilityManifestModel.id == manifest_id).first()
+            if row is None:
+                return None
+            db.query(CapabilityManifestModel).filter(
+                CapabilityManifestModel.agent_id == row.agent_id,
+                CapabilityManifestModel.tenant_id == row.tenant_id,
+                CapabilityManifestModel.namespace == row.namespace,
+                CapabilityManifestModel.id != row.id,
+            ).update({CapabilityManifestModel.active: False}, synchronize_session=False)
+            row.active = True
+            db.commit()
+            db.refresh(row)
+            return row
+        finally:
+            db.close()
+
+    def update_manifest_tools(self, manifest_id: int, allowed_tools: list[dict], activate: bool = False) -> Optional[CapabilityManifestModel]:
+        db = SessionLocal()
+        try:
+            row = db.query(CapabilityManifestModel).filter(CapabilityManifestModel.id == manifest_id).first()
+            if row is None:
+                return None
+            row.allowed_tools = allowed_tools
+            if activate:
+                db.query(CapabilityManifestModel).filter(
+                    CapabilityManifestModel.agent_id == row.agent_id,
+                    CapabilityManifestModel.tenant_id == row.tenant_id,
+                    CapabilityManifestModel.namespace == row.namespace,
+                    CapabilityManifestModel.id != row.id,
+                ).update({CapabilityManifestModel.active: False}, synchronize_session=False)
+                row.active = True
+            db.commit()
+            db.refresh(row)
+            return row
+        finally:
+            db.close()
+
     def create_next_version(
         self,
         manifest_id: int,

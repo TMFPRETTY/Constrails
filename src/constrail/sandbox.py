@@ -116,16 +116,23 @@ class DockerSandboxExecutor(SandboxExecutor):
 
         volume_args = []
         host_workspace = os.getcwd()
+        mount_mode = 'ro' if settings.sandbox_workspace_mount_readonly else 'rw'
         if os.path.isdir(host_workspace):
-            volume_args = ['-v', f'{host_workspace}:/workspace:ro']
+            volume_args = ['-v', f'{host_workspace}:/workspace:{mount_mode}']
+
+        network_mode = 'none' if not settings.sandbox_allow_host_network else 'bridge'
+        tmpfs_spec = f"/tmp:rw,noexec,nosuid,size={settings.sandbox_tmpfs_size_mb}m"
 
         cmd = prefix + [
             'docker', 'run', '--rm', '--name', sandbox_id,
-            '--network', 'none',
+            '--network', network_mode,
             '--memory', f'{settings.sandbox_memory_limit_mb}m',
             '--cpus', '0.5',
             '--read-only',
-            '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
+            '--cap-drop', 'ALL',
+            '--security-opt', 'no-new-privileges:true',
+            '--pids-limit', '128',
+            '--tmpfs', tmpfs_spec,
             '-w', workdir,
             *volume_args,
             *env_args,
@@ -190,12 +197,39 @@ def sandbox_health() -> dict[str, Any]:
     sandbox_type = settings.sandbox_type
     docker_path = shutil.which('docker')
     docker_available = docker_path is not None
+    image_has_digest = '@sha256:' in settings.sandbox_image
+    production_ready = (
+        sandbox_type == 'docker'
+        and docker_available
+        and settings.sandbox_workspace_mount_readonly
+        and not settings.sandbox_allow_host_network
+        and (image_has_digest or not settings.sandbox_require_image_digest)
+    )
+    warnings = []
+    if sandbox_type != 'docker':
+        warnings.append('sandbox_type is not docker')
+    if not docker_available:
+        warnings.append('docker CLI not found')
+    if not settings.sandbox_workspace_mount_readonly:
+        warnings.append('workspace mount is writable')
+    if settings.sandbox_allow_host_network:
+        warnings.append('sandbox network is not isolated')
+    if settings.sandbox_require_image_digest and not image_has_digest:
+        warnings.append('sandbox image is not pinned by digest')
     return {
         'sandbox_type': sandbox_type,
+        'sandbox_mode': settings.sandbox_mode,
         'sandbox_image': settings.sandbox_image,
+        'sandbox_image_has_digest': image_has_digest,
+        'sandbox_require_image_digest': settings.sandbox_require_image_digest,
+        'sandbox_allow_host_network': settings.sandbox_allow_host_network,
+        'sandbox_workspace_mount_readonly': settings.sandbox_workspace_mount_readonly,
+        'sandbox_tmpfs_size_mb': settings.sandbox_tmpfs_size_mb,
         'docker_cli_found': docker_available,
         'docker_path': docker_path,
         'docker_socket': settings.docker_socket or os.environ.get('DOCKER_HOST'),
+        'production_ready': production_ready,
+        'warnings': warnings,
     }
 
 

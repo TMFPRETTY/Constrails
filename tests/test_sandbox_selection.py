@@ -1,6 +1,5 @@
-from constrail import sandbox as sandbox_module
 from constrail.config import settings
-from constrail.sandbox import DevSandboxExecutor, DockerSandboxExecutor, get_sandbox_executor, reset_sandbox_executor
+from constrail.sandbox import DevSandboxExecutor, DockerSandboxExecutor, get_sandbox_executor, reset_sandbox_executor, sandbox_health
 
 
 class TempSetting:
@@ -41,3 +40,15 @@ def test_none_sandbox_returns_none():
         executor = get_sandbox_executor()
         assert executor is None
     reset_sandbox_executor()
+
+
+
+def test_sandbox_health_reports_posture_flags():
+    with TempSetting('sandbox_type', 'docker'), TempSetting('sandbox_workspace_mount_readonly', False), TempSetting('sandbox_allow_host_network', True), TempSetting('sandbox_require_image_digest', True), TempSetting('sandbox_image', 'python:3.11-alpine'):
+        health = sandbox_health()
+        assert health['sandbox_type'] == 'docker'
+        assert health['sandbox_require_image_digest'] is True
+        assert health['sandbox_allow_host_network'] is True
+        assert health['sandbox_workspace_mount_readonly'] is False
+        assert health['production_ready'] is False
+        assert len(health['warnings']) >= 1

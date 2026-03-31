@@ -13,6 +13,8 @@ This document describes the suggested process for publishing Constrails releases
 - confirm README, CHANGELOG, CONTRIBUTING, and SECURITY docs are current
 - confirm `.env.example` and deployment examples are current
 - confirm sample OPA bundle and compose example are present
+- confirm sandbox posture defaults are documented and intentional
+- confirm capability lifecycle commands and approval operator workflows are current
 - review `.github/release-notes/0.1.0-alpha.md`
 
 ## Suggested commands
@@ -22,21 +24,30 @@ This document describes the suggested process for publishing Constrails releases
 ```bash
 git status
 .venv/bin/python -m pytest -q tests
+.venv/bin/python -m constrail.cli doctor --json
+.venv/bin/python -m constrail.cli auth-status --json
 ```
 
-### 2. Create the annotated tag
+### 2. Sanity check operator surfaces
+
+```bash
+.venv/bin/python -m constrail.cli approval-list --limit 5 --json
+.venv/bin/python -m constrail.cli capability-list --json
+```
+
+### 3. Create the annotated tag
 
 ```bash
 git tag -a v0.1.0-alpha -m "Constrails 0.1.0-alpha"
 ```
 
-### 3. Push the tag
+### 4. Push the tag
 
 ```bash
 git push origin v0.1.0-alpha
 ```
 
-### 4. Create the GitHub release
+### 5. Create the GitHub release
 
 Use the contents of:
 
@@ -53,4 +64,5 @@ Mark it as a **pre-release** on GitHub.
 - verify tag is visible on GitHub
 - verify release notes render correctly
 - verify README links and badges still look right
+- verify sandbox posture and env defaults still match documentation
 - optionally announce the alpha in project/community channels

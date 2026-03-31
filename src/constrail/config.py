@@ -33,11 +33,16 @@ class Settings(BaseSettings):
     admin_namespace: Optional[str] = None
 
     sandbox_type: str = "dev"
+    sandbox_mode: str = "development"
     docker_socket: Optional[str] = None
     sandbox_image: str = "python:3.11-alpine"
     sandbox_timeout_seconds: int = 300
     sandbox_memory_limit_mb: int = 512
     sandbox_cpu_shares: int = 512
+    sandbox_require_image_digest: bool = False
+    sandbox_allow_host_network: bool = False
+    sandbox_workspace_mount_readonly: bool = True
+    sandbox_tmpfs_size_mb: int = 64
 
     policy_engine: str = "opa"
     opa_url: str = "http://localhost:8181"
