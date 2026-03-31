@@ -12,6 +12,7 @@ import uvicorn
 from rich.console import Console
 from rich.table import Table
 
+from . import __version__
 from .approval import get_approval_service
 from .config import settings
 from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
@@ -21,8 +22,19 @@ console = Console()
 
 
 @click.group(help="Constrail command line interface.")
+@click.version_option(version=__version__, prog_name="constrail")
 def cli():
     pass
+
+
+@cli.command("version", help="Show the installed Constrail version.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def version_command(as_json: bool):
+    payload = {"name": "constrail", "version": __version__}
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print(f"constrail {__version__}")
 
 
 @cli.command("init-db", help="Initialize the Constrail database schema.")

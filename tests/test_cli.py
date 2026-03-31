@@ -19,6 +19,18 @@ def test_doctor_json_command():
     assert '"sandbox_type"' in result.output
 
 
+def test_version_command():
+    result = runner.invoke(cli, ['version'])
+    assert result.exit_code == 0
+    assert 'constrail 0.1.0' in result.output
+
+
+def test_version_json_command():
+    result = runner.invoke(cli, ['version', '--json'])
+    assert result.exit_code == 0
+    assert '"version": "0.1.0"' in result.output
+
+
 def test_init_db_command():
     result = runner.invoke(cli, ['init-db'])
     assert result.exit_code == 0
