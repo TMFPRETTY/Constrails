@@ -18,22 +18,35 @@ def wait_for(url: str, timeout_seconds: int = 30):
 
 
 wait_for('http://127.0.0.1:8000/health', timeout_seconds=120)
-# OPA may not expose a stable /health response in all local image/build combinations,
-# so verify the live policy path through Constrails rather than relying solely on OPA /health.
 
-payload = {
+read_payload = {
     'agent': {'agent_id': 'placeholder', 'trust_level': 0.8},
     'call': {'tool': 'read_file', 'parameters': {'path': 'README.md'}},
     'context': {'goal': 'compose opa smoke test'},
 }
-req = urllib.request.Request(
+read_req = urllib.request.Request(
     'http://127.0.0.1:8000/v1/action',
-    data=json.dumps(payload).encode(),
+    data=json.dumps(read_payload).encode(),
     headers={'Content-Type': 'application/json', 'X-API-Key': 'dev-agent'},
 )
-with urllib.request.urlopen(req, timeout=10) as response:
-    body = json.loads(response.read().decode())
+with urllib.request.urlopen(read_req, timeout=10) as response:
+    read_body = json.loads(response.read().decode())
 
-assert body['decision'] == 'allow', body
-assert body['result']['success'] is True, body
-print(json.dumps({'ok': True, 'decision': body['decision'], 'live_path': 'constrails->opa'}, indent=2))
+assert read_body['decision'] == 'allow', read_body
+assert read_body['result']['success'] is True, read_body
+
+exec_payload = {
+    'agent': {'agent_id': 'placeholder', 'trust_level': 0.8},
+    'call': {'tool': 'exec', 'parameters': {'command': 'echo opa-smoke'}},
+    'context': {'goal': 'compose opa smoke test exec'},
+}
+exec_req = urllib.request.Request(
+    'http://127.0.0.1:8000/v1/action',
+    data=json.dumps(exec_payload).encode(),
+    headers={'Content-Type': 'application/json', 'X-API-Key': 'dev-agent'},
+)
+with urllib.request.urlopen(exec_req, timeout=10) as response:
+    exec_body = json.loads(response.read().decode())
+
+assert exec_body['decision'] in {'approval_required', 'sandbox'}, exec_body
+print(json.dumps({'ok': True, 'read_decision': read_body['decision'], 'exec_decision': exec_body['decision'], 'live_path': 'constrails->opa'}, indent=2))

@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from constrail.config import settings
 from constrail.kernel import app
+from constrail.auth import get_auth_service
 
 
 client = TestClient(app)
@@ -51,6 +52,20 @@ def test_action_endpoint_accepts_agent_bearer_token():
     response = client.post('/v1/action', json=payload, headers={'Authorization': f'Bearer {token}'})
     assert response.status_code == 200
     assert response.json()['decision'] == 'allow'
+
+
+
+def test_revoked_bearer_token_rejected():
+    auth = get_auth_service()
+    token = auth.mint_token(role='agent', subject='revoked-agent', tenant_id='default', namespace='dev', agent_id='dev-agent')
+    auth.revoke_token(token)
+    payload = {
+        'agent': {'agent_id': 'placeholder', 'trust_level': 0.8},
+        'call': {'tool': 'read_file', 'parameters': {'path': 'README.md'}},
+        'context': {'goal': 'revoked bearer auth test'},
+    }
+    response = client.post('/v1/action', json=payload, headers={'Authorization': f'Bearer {token}'})
+    assert response.status_code == 403
 
 
 

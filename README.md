@@ -2,7 +2,7 @@
 
 ![Alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-64%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-67%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -29,15 +29,15 @@ Available today:
 - policy evaluation with built-in fallback when OPA is unavailable
 - expanded starter OPA policy bundle plus OPA-response contract tests and local/CI compose smoke coverage
 - tool broker with filesystem, HTTP, and exec adapters
-- approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, and attempt exhaustion tracking
-- local SQLite-backed audit, approval, sandbox execution, and capability persistence for development
+- approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, attempt exhaustion tracking, and an approval webhook outbox model
+- local SQLite-backed audit, approval, sandbox execution, token revocation, and capability persistence for development
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
 - Docker sandbox path hardened with clearer production-posture reporting and local compose smoke validation
 - a first-class `constrail` CLI entrypoint
 - read-only admin inspection endpoints for audit, sandbox, and capability history
 - filtered admin queries and scoped admin semantics for operational workflows
-- basic admin/agent auth separation with legacy static keys plus a stricter bearer-token auth path with issuer/audience validation
+- basic admin/agent auth separation with legacy static keys plus a stricter bearer-token auth path with issuer/audience validation and token revocation support
 - deployment examples for Docker Compose + OPA sidecar flow, including a serialized local smoke script
 - automated test coverage for the current MVP spine
 
@@ -45,9 +45,9 @@ Available today:
 
 Constrails has moved well beyond a sketch, but these areas are still maturing toward a more production-grade posture:
 
-- **Approval operations:** manual retry and delivery visibility exist, but a durable queued/outbox delivery model is still not in place.
+- **Approval operations:** an outbox model and drain command now exist, but this is still not a full asynchronous durable queue/outbox service.
 - **Sandbox validation breadth:** Docker posture and local smoke coverage are stronger, but broader validation across more deployment targets is still warranted.
-- **Identity/auth lifecycle:** bearer tokens now work with issuer/audience validation, but issuance, rotation, revocation, and stronger identity lifecycle controls are still early.
+- **Identity/auth lifecycle:** bearer tokens now support issuer/audience validation and revocation, but issuance, rotation, and stronger identity lifecycle controls can still mature further.
 - **OPA live integration depth:** local and CI live-path smoke coverage exists, but richer live-policy assertions across more decision classes can still deepen confidence.
 - **Distribution ergonomics:** install and release flows are better than they were, but broader packaging/distribution polish is still possible.
 
@@ -77,8 +77,8 @@ Core components in this repository:
 - `src/constrail/capability_store.py` - capability manifest persistence and lifecycle helpers
 - `src/constrail/risk/risk_engine.py` - heuristic risk scoring
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
-- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, retry, and attempt exhaustion helpers
-- `src/constrail/auth.py` - alpha auth principal, static-key auth, and bearer-token helpers
+- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, retry, exhaustion, and outbox helpers
+- `src/constrail/auth.py` - alpha auth principal, static-key auth, bearer-token helpers, and revocation support
 - `src/constrail/sandbox.py` - sandbox executor abstraction, posture reporting, and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
 - `src/constrail/database.py` - development database models and session management
@@ -115,7 +115,7 @@ cd Constrails
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
-python -m pip install -e .
+python -m pip install -e .[dev]
 ```
 
 After installation, the CLI should be available as:
@@ -177,7 +177,7 @@ Current development defaults:
 - sandbox mode: `development`
 - filesystem adapter base path: current repository working directory
 - auth mode: legacy static keys plus a stricter alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
-- approval webhooks: optional, with delivery tracking, retry support, and attempt limits
+- approval webhooks: optional, with delivery tracking, retry support, outbox state, and attempt limits
 
 These defaults are intentionally optimized for local bring-up, not for final production deployment.
 
@@ -194,7 +194,7 @@ export SANDBOX_REQUIRE_IMAGE_DIGEST=true
 export DOCKER_SOCKET=unix:///var/run/docker.sock
 ```
 
-Use `constrail doctor --json` to inspect whether the current sandbox posture looks production-ready.
+Use `constrail doctor --json` or `constrail sandbox-validate --json` to inspect whether the current sandbox posture looks production-ready.
 
 ### Optional OPA selection
 
@@ -256,13 +256,22 @@ constrail serve --host 127.0.0.1 --port 8011
 ```bash
 constrail doctor
 constrail doctor --json
+constrail sandbox-validate --json
 constrail auth-status
 constrail auth-status --json
 ```
 
 Agent and admin requests can still use `X-API-Key`, and alpha bearer tokens are also supported via `Authorization: Bearer <token>`.
 
-`doctor --json` now exposes sandbox posture fields such as:
+### Local bearer token workflows
+
+```bash
+constrail auth-mint-token --role agent --subject local-agent --tenant default --namespace dev --agent-id dev-agent --json
+constrail auth-inspect-token <token> --json
+constrail auth-revoke-token <token> --json
+```
+
+`doctor --json` and `sandbox-validate --json` expose sandbox posture fields such as:
 - `sandbox_mode`
 - `sandbox_image_has_digest`
 - `sandbox_require_image_digest`
@@ -276,6 +285,9 @@ Agent and admin requests can still use `X-API-Key`, and alpha bearer tokens are 
 ```bash
 constrail approval-list --limit 10
 constrail approval-list --limit 10 --json
+constrail approval-summary --json
+constrail approval-outbox-summary --json
+constrail approval-drain-outbox --limit 20 --json
 constrail approval-show <approval_id> --json
 constrail approval-approve <approval_id> --approver tmfpretty --comment "approved"
 constrail approval-deny <approval_id> --approver tmfpretty --comment "denied"
@@ -360,7 +372,7 @@ Current test coverage includes:
 - fail-closed behavior
 - broker dispatch
 - filesystem adapter behavior
-- approval request lifecycle, webhook delivery tracking, retry, and exhaustion behavior
+- approval request lifecycle, webhook delivery tracking, retry, exhaustion behavior, and outbox operator flows
 - capability constraints and lifecycle management
 - exec adapter sandbox behavior
 - sandbox executor selection, posture reporting, and replay flow
