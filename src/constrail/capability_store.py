@@ -15,6 +15,8 @@ class CapabilityStore:
         self,
         agent_id: Optional[str] = None,
         active: Optional[bool] = None,
+        tenant_id: Optional[str] = None,
+        namespace: Optional[str] = None,
     ) -> list[CapabilityManifestModel]:
         db = SessionLocal()
         try:
@@ -23,6 +25,10 @@ class CapabilityStore:
                 query = query.filter(CapabilityManifestModel.agent_id == agent_id)
             if active is not None:
                 query = query.filter(CapabilityManifestModel.active == active)
+            if tenant_id is not None:
+                query = query.filter(CapabilityManifestModel.tenant_id == tenant_id)
+            if namespace is not None:
+                query = query.filter(CapabilityManifestModel.namespace == namespace)
             return query.order_by(CapabilityManifestModel.created_at.desc()).all()
         finally:
             db.close()

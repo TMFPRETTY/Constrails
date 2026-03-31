@@ -52,10 +52,11 @@ def test_capability_create_bump_and_deactivate_commands():
     store = get_capability_store()
     rows = store.list_manifests(agent_id='managed-agent')
     manifest_id = rows[0].id
+    current_version = rows[0].version
 
     bump_result = runner.invoke(cli, ['capability-bump', str(manifest_id), '--json'])
     assert bump_result.exit_code == 0
-    assert '"version": 2' in bump_result.output
+    assert f'"version": {current_version + 1}' in bump_result.output
 
     deactivate_result = runner.invoke(cli, ['capability-deactivate', str(manifest_id)])
     assert deactivate_result.exit_code == 0

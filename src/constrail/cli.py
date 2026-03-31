@@ -15,6 +15,7 @@ from rich.table import Table
 
 from . import __version__
 from .approval import get_approval_service
+from .auth import get_auth_service
 from .capability_store import get_capability_store
 from .config import settings
 from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
@@ -38,6 +39,27 @@ def version_command(as_json: bool):
         click.echo(json.dumps(payload, indent=2))
         return
     console.print(f"constrail {__version__}")
+
+
+@cli.command("auth-status", help="Show configured auth roles for current alpha settings.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def auth_status_command(as_json: bool):
+    auth = get_auth_service()
+    payload = {
+        'agent_key_configured': bool(settings.agent_api_key),
+        'admin_key_configured': bool(settings.admin_api_key),
+        'agent_role': auth.authenticate(settings.agent_api_key).role if settings.agent_api_key else None,
+        'admin_role': auth.authenticate(settings.admin_api_key).role if settings.admin_api_key else None,
+    }
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    table = Table(title='Constrail Auth Status')
+    table.add_column('Setting')
+    table.add_column('Value')
+    for key, value in payload.items():
+        table.add_row(key, str(value))
+    console.print(table)
 
 
 @cli.command("init-db", help="Initialize the Constrail database schema.")
@@ -78,6 +100,7 @@ def doctor_command(as_json: bool):
         "docker_path": sandbox_info["docker_path"],
         "docker_socket": sandbox_info["docker_socket"],
         "policy_dir": settings.policy_dir,
+        "auth_mode": 'dual-static-keys-alpha',
     }
 
     if as_json:
@@ -103,20 +126,10 @@ def audit_list_command(limit: int, as_json: bool):
     db = SessionLocal()
     try:
         rows = db.query(AuditRecordModel).order_by(AuditRecordModel.start_time.desc()).limit(limit).all()
-        payload = [
-            {
-                "request_id": str(row.request_id),
-                "tool": row.tool,
-                "decision": row.final_decision.value if hasattr(row.final_decision, 'value') else str(row.final_decision),
-                "agent_id": row.agent_id,
-                "sandbox_id": row.sandbox_id,
-            }
-            for row in rows
-        ]
+        payload = [{"request_id": str(row.request_id), "tool": row.tool, "decision": row.final_decision.value if hasattr(row.final_decision, 'value') else str(row.final_decision), "agent_id": row.agent_id, "sandbox_id": row.sandbox_id} for row in rows]
         if as_json:
             click.echo(json.dumps(payload, indent=2))
             return
-
         table = Table(title="Audit Records")
         table.add_column("Request ID")
         table.add_column("Tool")
@@ -138,20 +151,10 @@ def sandbox_list_command(limit: int, as_json: bool):
     db = SessionLocal()
     try:
         rows = db.query(SandboxExecutionModel).order_by(SandboxExecutionModel.created_at.desc()).limit(limit).all()
-        payload = [
-            {
-                "sandbox_id": row.sandbox_id,
-                "executor": row.executor,
-                "status": row.status,
-                "tool": row.tool,
-                "approval_id": str(row.approval_id) if row.approval_id else None,
-            }
-            for row in rows
-        ]
+        payload = [{"sandbox_id": row.sandbox_id, "executor": row.executor, "status": row.status, "tool": row.tool, "approval_id": str(row.approval_id) if row.approval_id else None} for row in rows]
         if as_json:
             click.echo(json.dumps(payload, indent=2))
             return
-
         table = Table(title="Sandbox Executions")
         table.add_column("Sandbox ID")
         table.add_column("Executor")
@@ -173,21 +176,10 @@ def capability_list_command(agent_id: str | None, active: bool, as_json: bool):
     init_db()
     store = get_capability_store()
     rows = store.list_manifests(agent_id=agent_id, active=True if active else None)
-    payload = [
-        {
-            "id": row.id,
-            "agent_id": row.agent_id,
-            "tenant_id": row.tenant_id,
-            "namespace": row.namespace,
-            "version": row.version,
-            "active": row.active,
-        }
-        for row in rows
-    ]
+    payload = [{"id": row.id, "agent_id": row.agent_id, "tenant_id": row.tenant_id, "namespace": row.namespace, "version": row.version, "active": row.active} for row in rows]
     if as_json:
         click.echo(json.dumps(payload, indent=2))
         return
-
     table = Table(title="Capability Manifests")
     table.add_column("ID")
     table.add_column("Agent")
