@@ -24,6 +24,10 @@ class AuditRecordResponse(BaseModel):
     approver_id: Optional[str] = None
     approval_id: Optional[UUID] = None
     replayed_from_approval_id: Optional[UUID] = None
+    auth_type: Optional[str] = None
+    auth_subject: Optional[str] = None
+    auth_token_id: Optional[str] = None
+    auth_key_id: Optional[str] = None
     sandbox_id: Optional[str] = None
     execution_result: Optional[dict[str, Any]] = None
     error: Optional[str] = None
@@ -46,6 +50,10 @@ class AuditRecordResponse(BaseModel):
             approver_id=row.approver_id,
             approval_id=row.approval_id,
             replayed_from_approval_id=row.replayed_from_approval_id,
+            auth_type=getattr(row, 'auth_type', None),
+            auth_subject=getattr(row, 'auth_subject', None),
+            auth_token_id=getattr(row, 'auth_token_id', None),
+            auth_key_id=getattr(row, 'auth_key_id', None),
             sandbox_id=row.sandbox_id,
             execution_result=row.execution_result,
             error=row.error,

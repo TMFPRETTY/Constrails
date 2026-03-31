@@ -84,6 +84,13 @@ async def execute_action(
         request.agent.agent_id = principal.subject or settings.agent_api_key
         request.agent.tenant_id = principal.tenant_id
         request.agent.namespace = principal.namespace
+    request.context['auth'] = {
+        'auth_type': principal.auth_type,
+        'auth_subject': principal.subject,
+        'auth_token_id': principal.token_id,
+        'auth_key_id': principal.key_id,
+        'role': principal.role,
+    }
     kernel = await get_kernel()
     return await kernel.process(request)
 

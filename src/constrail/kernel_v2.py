@@ -314,6 +314,7 @@ class ConstrailKernel:
         approver_id: Optional[str] = None,
         replayed_from_approval_id=None,
     ):
+        auth_context = request.context.get('auth', {}) if isinstance(request.context, dict) else {}
         audit_record = AuditRecordModel(
             request_id=uuid.UUID(request_id),
             agent_id=request.agent.agent_id,
@@ -326,6 +327,10 @@ class ConstrailKernel:
             approver_id=approver_id,
             approval_id=approval_id,
             replayed_from_approval_id=replayed_from_approval_id,
+            auth_type=auth_context.get('auth_type'),
+            auth_subject=auth_context.get('auth_subject'),
+            auth_token_id=auth_context.get('auth_token_id'),
+            auth_key_id=auth_context.get('auth_key_id'),
             sandbox_id=sandbox_id,
             execution_result=execution_result.model_dump(mode="json") if execution_result else None,
             error=error,
