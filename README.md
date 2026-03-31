@@ -27,14 +27,15 @@ Available today:
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
 - opt-in Docker sandbox executor path
+- a first-class `constrail` CLI entrypoint
 - automated test coverage for the current MVP spine
 
 Still under active development:
 - production-grade approval UX
-- verified production-grade containerized sandbox execution
+- verified production-grade containerized sandbox execution defaults
 - richer multi-tenant capability lifecycle management
 - live OPA policy bundle management
-- polished package/CLI distribution workflow
+- broader package distribution ergonomics
 
 ## Why Constrails
 
@@ -64,6 +65,7 @@ Core components in this repository:
 - `src/constrail/approval.py` - approval persistence and state transitions
 - `src/constrail/sandbox.py` - sandbox executor abstraction and implementations
 - `src/constrail/database.py` - development database models and session management
+- `src/constrail/cli.py` - CLI entrypoint for local operations
 
 ## Repository Layout
 
@@ -78,14 +80,33 @@ scripts/                 reserved for future tooling
 
 ## Installation
 
-## Prerequisites
+### Prerequisites
 
 Recommended:
 - Python 3.10+
 - a virtual environment
-- Docker (optional, for future/opt-in container sandbox execution)
+- Docker (optional, for opt-in container sandbox execution)
 
-## Option 1: Run from a local checkout
+### Option 1: Local checkout with editable install
+
+```bash
+git clone https://github.com/TMFPRETTY/Constrails.git
+cd Constrails
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -e .
+```
+
+After installation, the CLI should be available as:
+
+```bash
+constrail --help
+```
+
+### Option 2: Local checkout without editable install
+
+If editable install is not available in your environment yet, install runtime dependencies directly and use the module path:
 
 ```bash
 git clone https://github.com/TMFPRETTY/Constrails.git
@@ -93,39 +114,50 @@ cd Constrails
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install fastapi uvicorn httpx sqlalchemy psycopg2-binary pydantic pydantic-settings pytest pytest-asyncio
+python -m pip install fastapi uvicorn httpx sqlalchemy psycopg2-binary pydantic pydantic-settings click rich pytest pytest-asyncio
+export PYTHONPATH=src
 ```
 
-Because the packaging/CLI workflow is still being polished, the most reliable current launch path is module-based:
+Then run the CLI module directly:
 
 ```bash
-PYTHONPATH=src python -m uvicorn constrail.kernel:app --host 127.0.0.1 --port 8011
+python -m constrail.cli --help
 ```
 
-## Option 2: Editable install
+## CLI Usage
 
-Editable install may work depending on your local Python packaging toolchain.
-If your environment supports modern `pyproject.toml` editable installs, try:
+Constrails now provides a first CLI surface for local development and service management.
+
+### Initialize the database
 
 ```bash
-python -m pip install -e .
+constrail init-db
 ```
 
-If that fails on an older system Python, use **Option 1** for now.
-
-## CLI and service startup
-
-Constrails does **not** yet ship a polished standalone CLI binary or console script.
-
-For now, professional/reliable usage is:
-- run the API server with `python -m uvicorn`
-- interact with it over HTTP
-- run tests with `pytest`
-
-Current launch command:
+### Run the API server
 
 ```bash
-PYTHONPATH=src python -m uvicorn constrail.kernel:app --host 127.0.0.1 --port 8011
+constrail serve --host 127.0.0.1 --port 8011
+```
+
+For development reload:
+
+```bash
+constrail serve --host 127.0.0.1 --port 8011 --reload
+```
+
+### Inspect runtime configuration
+
+```bash
+constrail doctor
+```
+
+If you are running without editable install, use the module form:
+
+```bash
+PYTHONPATH=src python -m constrail.cli doctor
+PYTHONPATH=src python -m constrail.cli init-db
+PYTHONPATH=src python -m constrail.cli serve --host 127.0.0.1 --port 8011
 ```
 
 ## Configuration
@@ -142,7 +174,7 @@ These defaults are intentionally optimized for local bring-up, not for final pro
 
 Development default is `dev`.
 
-If Docker becomes available, you can opt in before starting the API:
+If Docker is available, you can opt in before starting the API:
 
 ```bash
 export SANDBOX_TYPE=docker
@@ -169,17 +201,13 @@ The included `dev-agent` manifest supports local development and demonstrates:
 ### 1. Initialize the development database
 
 ```bash
-PYTHONPATH=src python - <<'PY'
-from constrail.database import init_db
-init_db()
-print('db initialized')
-PY
+constrail init-db
 ```
 
 ### 2. Start the API
 
 ```bash
-PYTHONPATH=src python -m uvicorn constrail.kernel:app --host 127.0.0.1 --port 8011
+constrail serve --host 127.0.0.1 --port 8011
 ```
 
 ### 3. Smoke test the API
@@ -269,6 +297,7 @@ Current test coverage includes:
 - exec adapter sandbox behavior
 - sandbox executor selection and replay flow
 - audit and sandbox provenance linkage for approved replays
+- CLI command surface
 
 ## Safety Note
 

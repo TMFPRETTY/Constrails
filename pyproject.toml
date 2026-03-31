@@ -59,6 +59,9 @@ sdk = [
     "openai>=1.0.0",
 ]
 
+[project.scripts]
+constrail = "constrail.cli:cli"
+
 [project.urls]
 Homepage = "https://github.com/tmfpretty/constrails"
 Documentation = "https://constrails.readthedocs.io/"
