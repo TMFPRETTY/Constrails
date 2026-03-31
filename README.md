@@ -2,7 +2,7 @@
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
 
-Instead of trusting an agent to self-regulate, Constrails forces meaningful actions through a safety kernel that can:
+Instead of trusting an agent to self-regulate, Constrails routes meaningful actions through a safety kernel that can:
 
 - identify the agent
 - validate capabilities
@@ -14,24 +14,38 @@ Instead of trusting an agent to self-regulate, Constrails forces meaningful acti
 
 ## Current Status
 
-This repository now contains a working **development MVP spine**.
+Constrails currently provides a working **development MVP spine** for governed agent execution.
 
-Working today:
+Available today:
 - canonical kernel path (`kernel_v2.py`) behind FastAPI (`kernel.py`)
 - capability-based allow/deny checks
-- risk scoring with bootstrap risk profiles
+- heuristic risk scoring with bootstrap risk profiles
 - policy evaluation with built-in fallback when OPA is unavailable
 - tool broker with filesystem, HTTP, and exec adapters
+- approval request lifecycle and approval API endpoints
 - local SQLite-backed audit and approval persistence for development
-- approval request API endpoints
-- passing automated test suite for the current spine
+- path, domain, and command constraints in capability manifests
+- sandbox-first exec behavior with a development sandbox executor
+- opt-in Docker sandbox executor path
+- automated test coverage for the current MVP spine
 
-Not finished yet:
+Still under active development:
 - production-grade approval UX
-- sandboxed exec enforcement
-- rich capability constraints (path/domain/command allowlists)
+- verified production-grade containerized sandbox execution
+- richer multi-tenant capability lifecycle management
 - live OPA policy bundle management
-- polished packaging/install workflow
+- polished package/CLI distribution workflow
+
+## Why Constrails
+
+Prompting alone is not a sufficient safety boundary for autonomous systems. Constrails moves control into infrastructure by enforcing policy at execution time.
+
+This project is designed around a few core principles:
+- external enforcement over prompt-based trust
+- least privilege and explicit capabilities
+- fail-closed defaults where practical
+- auditable actions and replayable decisions
+- no direct tool access outside the broker
 
 ## Architecture Overview
 
@@ -39,16 +53,17 @@ Request flow:
 
 `Agent -> Kernel -> Capability Check -> Risk -> Policy -> Decision -> Broker -> Audit`
 
-Core components in this repo:
+Core components in this repository:
 
 - `src/constrail/kernel_v2.py` - canonical request lifecycle
 - `src/constrail/kernel.py` - FastAPI API wrapper
 - `src/constrail/tool_broker/broker.py` - tool dispatch and execution modes
 - `src/constrail/capability/manager.py` - capability manifest loading and checks
 - `src/constrail/risk/risk_engine.py` - heuristic risk scoring
-- `src/constrail/policy/policy_engine.py` - OPA integration with builtin fallback
-- `src/constrail/approval.py` - approval persistence and state changes
-- `src/constrail/database.py` - development DB models/session
+- `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
+- `src/constrail/approval.py` - approval persistence and state transitions
+- `src/constrail/sandbox.py` - sandbox executor abstraction and implementations
+- `src/constrail/database.py` - development database models and session management
 
 ## Repository Layout
 
@@ -56,51 +71,102 @@ Core components in this repo:
 src/constrail/           application code
 policies/                bootstrap capability and risk profiles
 tests/                   supported automated tests
-archive/obsolete-tests/  old scratch tests kept for reference
+archive/obsolete-tests/  archived scratch tests kept for reference
 examples/                reserved for future examples
 scripts/                 reserved for future tooling
 ```
 
-## Development Defaults
+## Installation
 
-For local development, the repo currently defaults to:
+## Prerequisites
 
-- database: `sqlite:///./constrail-dev.db`
-- policy fallback: builtin simple policy if OPA is unavailable
-- filesystem adapter base path: current repository working directory
+Recommended:
+- Python 3.10+
+- a virtual environment
+- Docker (optional, for future/opt-in container sandbox execution)
 
-This is intentionally developer-friendly and not the final production posture.
-
-## Bootstrap Policy Files
-
-Current bootstrap files:
-
-- `policies/capabilities/dev-agent.json`
-- `policies/tool_risk_profiles.json`
-
-The included `dev-agent` manifest allows basic development-time flows and still routes risky actions like `exec`, `http_request`, and writes into approval-required handling.
-
-## Running Locally
-
-### 1. Use the project virtualenv if available
-
-This repo already has a `.venv` in the workspace. If it exists, prefer it.
+## Option 1: Run from a local checkout
 
 ```bash
+git clone https://github.com/TMFPRETTY/Constrails.git
+cd Constrails
+python3 -m venv .venv
 source .venv/bin/activate
-```
-
-### 2. Ensure dependencies are present
-
-If the environment is missing packages, install them with the interpreter for your venv.
-
-```bash
+python -m pip install --upgrade pip
 python -m pip install fastapi uvicorn httpx sqlalchemy psycopg2-binary pydantic pydantic-settings pytest pytest-asyncio
 ```
 
-Note: editable install via `pip install -e .` may require a newer local packaging toolchain than the system Python currently provides.
+Because the packaging/CLI workflow is still being polished, the most reliable current launch path is module-based:
 
-### 3. Initialize the development database
+```bash
+PYTHONPATH=src python -m uvicorn constrail.kernel:app --host 127.0.0.1 --port 8011
+```
+
+## Option 2: Editable install
+
+Editable install may work depending on your local Python packaging toolchain.
+If your environment supports modern `pyproject.toml` editable installs, try:
+
+```bash
+python -m pip install -e .
+```
+
+If that fails on an older system Python, use **Option 1** for now.
+
+## CLI and service startup
+
+Constrails does **not** yet ship a polished standalone CLI binary or console script.
+
+For now, professional/reliable usage is:
+- run the API server with `python -m uvicorn`
+- interact with it over HTTP
+- run tests with `pytest`
+
+Current launch command:
+
+```bash
+PYTHONPATH=src python -m uvicorn constrail.kernel:app --host 127.0.0.1 --port 8011
+```
+
+## Configuration
+
+Current development defaults:
+- database: `sqlite:///./constrail-dev.db`
+- policy fallback: built-in simple policy if OPA is unavailable
+- sandbox type: `dev`
+- filesystem adapter base path: current repository working directory
+
+These defaults are intentionally optimized for local bring-up, not for final production deployment.
+
+### Optional sandbox selection
+
+Development default is `dev`.
+
+If Docker becomes available, you can opt in before starting the API:
+
+```bash
+export SANDBOX_TYPE=docker
+# optional if Docker is on a non-default socket
+export DOCKER_SOCKET=unix:///var/run/docker.sock
+```
+
+If Docker is not running or not reachable, keep the default dev sandbox.
+
+## Bootstrap policy files
+
+Included bootstrap files:
+- `policies/capabilities/dev-agent.json`
+- `policies/tool_risk_profiles.json`
+
+The included `dev-agent` manifest supports local development and demonstrates:
+- scoped filesystem access
+- constrained HTTP destinations
+- constrained command execution
+- approval-required handling for risky tools
+
+## Quick Start
+
+### 1. Initialize the development database
 
 ```bash
 PYTHONPATH=src python - <<'PY'
@@ -110,15 +176,13 @@ print('db initialized')
 PY
 ```
 
-### 4. Start the API
-
-Use module form for uvicorn if the shell entrypoint is missing.
+### 2. Start the API
 
 ```bash
 PYTHONPATH=src python -m uvicorn constrail.kernel:app --host 127.0.0.1 --port 8011
 ```
 
-### 5. Smoke test the API
+### 3. Smoke test the API
 
 ```bash
 python - <<'PY'
@@ -139,7 +203,7 @@ with urllib.request.urlopen(req) as r:
 PY
 ```
 
-## API Endpoints
+## API Overview
 
 ### Health
 
@@ -155,7 +219,7 @@ Example request:
 {
   "agent": {"agent_id": "placeholder", "trust_level": 0.8},
   "call": {"tool": "read_file", "parameters": {"path": "README.md"}},
-  "context": {"goal": "read the project readme"}
+  "context": {"goal": "read the project README"}
 }
 ```
 
@@ -167,7 +231,7 @@ Example request:
 - `POST /v1/approval/{approval_id}/deny`
 - `POST /v1/approval/{approval_id}/replay`
 
-Example approval request creation:
+Example approval-triggering request:
 
 ```json
 {
@@ -186,48 +250,30 @@ Example approve payload:
 }
 ```
 
-## Running Tests
+## Testing
 
-Use the workspace venv if present.
+Run the supported suite with the project virtualenv if present:
 
 ```bash
 .venv/bin/python -m pytest -q tests
 ```
 
-Current suite covers:
+Current test coverage includes:
 - kernel happy paths
 - fail-closed behavior
 - broker dispatch
 - filesystem adapter behavior
 - FastAPI smoke path
 - approval request lifecycle
-
-## What to Push
-
-Yes, I think it is reasonable to start pushing code now, but with one caveat:
-
-**Push this as an MVP spine milestone, not as "production-ready."**
-
-That means the next commit/PR should clearly describe:
-- canonical kernel cleanup
-- broker/adapter contract unification
-- dev SQLite bring-up
-- bootstrap policy/capability files
-- test suite cleanup and passing coverage
-- initial approval flow endpoints
-
-That is enough real substance to justify pushing.
-
-## Recommended Next Milestones
-
-1. tighten approval replay semantics so approved requests can execute without re-entering approval
-2. add path/domain/command constraints to capability manifests
-3. enforce sandbox execution for `exec`
-4. improve audit records with approver linkage and replay provenance
-5. support real OPA bundles/policies
-6. clean up packaging/install flow for editable installs
+- capability constraints
+- exec adapter sandbox behavior
+- sandbox executor selection and replay flow
 
 ## Safety Note
 
 Current development defaults are intentionally permissive enough to enable local bring-up.
-Do not mistake the dev SQLite path, local filesystem base path, or fallback policy mode for the intended final production deployment posture.
+Do not mistake the dev SQLite path, local filesystem base path, fallback policy mode, or dev sandbox executor for the intended final production deployment posture.
+
+## License
+
+See `LICENSE`.

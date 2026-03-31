@@ -1,20 +1,18 @@
 """
 Exec adapter for Constrail.
-Handles execution of shell commands with sandbox-aware fallback behavior.
+Handles execution of shell commands with sandbox-aware behavior.
 """
 
-import asyncio
-import subprocess
-
 from ..models import ToolCall, ToolResult, ToolResultStatus
-from .base import ToolAdapter, AdapterError
+from .base import AdapterError, ToolAdapter
 
 
 class ExecAdapter(ToolAdapter):
     """Adapter for executing shell commands."""
 
-    def __init__(self, sandbox_executor=None):
+    def __init__(self, sandbox_executor=None, allow_unsandboxed: bool = False):
         self.sandbox_executor = sandbox_executor
+        self.allow_unsandboxed = allow_unsandboxed
 
     @property
     def tool_name(self) -> str:
@@ -24,68 +22,45 @@ class ExecAdapter(ToolAdapter):
         try:
             params = call.parameters or {}
             command = params.get("command", "")
+            cwd = params.get("cwd")
+            env = params.get("env")
+            timeout = params.get("timeout")
 
             if not command:
                 raise AdapterError("Missing required parameter 'command'")
 
             if self.sandbox_executor is not None:
-                result = await self.sandbox_executor.execute(command)
-                exit_code = result.get("exit_code")
-                success = exit_code == 0
+                result = await self.sandbox_executor.execute(
+                    command,
+                    cwd=cwd,
+                    env=env,
+                    timeout=timeout,
+                )
+                success = result.exit_code == 0 and not result.timeout
                 return ToolResult(
                     success=success,
-                    data=result,
-                    error=None if success else f"Command failed with exit code {exit_code}",
-                    status=ToolResultStatus.SUCCESS if success else ToolResultStatus.ERROR,
+                    data=result.to_dict(),
+                    error=None if success else (
+                        f"Command timed out in sandbox {result.sandbox_id}"
+                        if result.timeout
+                        else f"Command failed with exit code {result.exit_code} in sandbox {result.sandbox_id}"
+                    ),
+                    metadata={
+                        'sandbox_id': result.sandbox_id,
+                        'sandbox_executor': result.executor,
+                    },
+                    status=ToolResultStatus.SUCCESS if success else (ToolResultStatus.TIMEOUT if result.timeout else ToolResultStatus.ERROR),
                 )
 
-            timeout = params.get("timeout")
-            cwd = params.get("cwd")
-            env = params.get("env")
-
-            process = await asyncio.create_subprocess_shell(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.DEVNULL,
-                cwd=cwd,
-                env=env,
-            )
-
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=timeout if timeout else None,
-                )
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
+            if not self.allow_unsandboxed:
                 return ToolResult(
                     success=False,
-                    data={
-                        "exit_code": None,
-                        "stdout": "",
-                        "stderr": "",
-                        "timeout": True,
-                    },
-                    error=f"Command timed out after {timeout} seconds",
-                    status=ToolResultStatus.TIMEOUT,
+                    data={"sandbox_required": True},
+                    error="Unsandboxed exec is disabled; configure a sandbox executor or explicitly opt into unsandboxed execution",
+                    status=ToolResultStatus.BLOCKED,
                 )
 
-            exit_code = process.returncode
-            result_data = {
-                "exit_code": exit_code,
-                "stdout": stdout.decode("utf-8", errors="replace"),
-                "stderr": stderr.decode("utf-8", errors="replace"),
-                "timeout": False,
-            }
-            success = exit_code == 0
-            return ToolResult(
-                success=success,
-                data=result_data,
-                error=None if success else f"Command failed with exit code {exit_code}",
-                status=ToolResultStatus.SUCCESS if success else ToolResultStatus.ERROR,
-            )
+            raise AdapterError("Unsandboxed execution path is not enabled in this build")
 
         except AdapterError as e:
             return ToolResult(success=False, data={}, error=str(e), status=ToolResultStatus.ERROR)

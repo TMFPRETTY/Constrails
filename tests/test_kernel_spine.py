@@ -14,6 +14,13 @@ def setup_module(module):
     init_db()
 
 
+
+def test_capability_manager_reload_is_used_by_kernel():
+    kernel = ConstrailKernel()
+    kernel.capability_manager.reload()
+    assert 'read_file' in kernel.capability_manager.get_allowed_tools('dev-agent')
+
+
 def test_read_file_happy_path():
     kernel = ConstrailKernel()
     req = ActionRequest(

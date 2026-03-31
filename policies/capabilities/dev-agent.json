@@ -1,28 +1,33 @@
 {
   "agent_id": "dev-agent",
-  "version": 1,
+  "version": 2,
   "allowances": [
     {
       "tool": "read_file",
-      "allowed_parameters": ["path"]
+      "allowed_parameters": ["path"],
+      "path_prefixes": ["README.md", "docs", "policies", "src", "tests"]
     },
     {
       "tool": "list_directory",
-      "allowed_parameters": ["path"]
+      "allowed_parameters": ["path"],
+      "path_prefixes": [".", "docs", "policies", "src", "tests"]
     },
     {
       "tool": "write_file",
       "allowed_parameters": ["path", "content"],
+      "path_prefixes": ["docs", "policies", "src", "tests"],
       "require_approval": true
     },
     {
       "tool": "http_request",
       "allowed_parameters": ["method", "url", "headers", "params", "json", "body", "timeout"],
+      "allowed_domains": ["httpbin.org", "docs.openclaw.ai", "api.github.com"],
       "require_approval": true
     },
     {
       "tool": "exec",
       "allowed_parameters": ["command", "timeout", "cwd", "env"],
+      "command_allowlist": ["echo", "pwd", "ls"],
       "require_approval": true
     }
   ]

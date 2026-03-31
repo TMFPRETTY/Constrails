@@ -120,6 +120,8 @@ class ConstrailKernel:
             execution_result = await self._execute_tool(
                 request, final_decision, request_id, risk_assessment.level.value
             )
+            if execution_result is not None:
+                sandbox_id = execution_result.metadata.get("sandbox_id")
             if not execution_result.success:
                 error = execution_result.error
 
@@ -158,7 +160,9 @@ class ConstrailKernel:
             return Decision.APPROVAL_REQUIRED
 
         tool = request.call.tool
-        if tool in {"exec", "http_request", "write_file", "delete_file"}:
+        if tool in {"http_request", "write_file", "delete_file"}:
+            return Decision.APPROVAL_REQUIRED
+        if tool == "exec":
             return Decision.APPROVAL_REQUIRED
 
         return policy_decision
@@ -221,13 +225,15 @@ class ConstrailKernel:
         )
 
         risk_assessment = self.risk_engine.assess(request)
-        policy_evaluation = await self.policy_engine.evaluate(request, risk_assessment)
+        await self.policy_engine.evaluate(request, risk_assessment)
+        forced_decision = Decision.SANDBOX if approval.tool == "exec" else Decision.ALLOW
         execution_result = await self._execute_tool(
             request,
-            Decision.ALLOW,
+            forced_decision,
             str(uuid.uuid4()),
             risk_assessment.level.value,
         )
+        sandbox_id = execution_result.metadata.get("sandbox_id") if execution_result else None
         error = None if execution_result.success else execution_result.error
         return ActionResponse(
             request_id=uuid.uuid4(),
@@ -235,7 +241,7 @@ class ConstrailKernel:
             result=execution_result.model_dump() if execution_result else None,
             error=error,
             approval_id=approval_id,
-            sandbox_id=None,
+            sandbox_id=sandbox_id,
         )
 
     async def _log_audit(

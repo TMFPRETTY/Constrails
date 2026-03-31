@@ -44,3 +44,6 @@ def test_approval_request_lifecycle():
     replay_body = replay_response.json()
     assert replay_body['decision'] == 'allow'
     assert replay_body['result'] is not None
+    assert replay_body['result']['success'] is True
+    assert replay_body['sandbox_id'] is not None
+    assert replay_body['result']['metadata']['sandbox_executor'] == 'dev'

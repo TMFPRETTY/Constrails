@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     token_expire_minutes: int = 30
 
     # Sandbox
-    sandbox_type: str = "docker"  # docker, gvisor, none
+    sandbox_type: str = "dev"  # dev, docker, gvisor, none
     docker_socket: Optional[str] = None  # defaults to /var/run/docker.sock
     sandbox_timeout_seconds: int = 300
     sandbox_memory_limit_mb: int = 512

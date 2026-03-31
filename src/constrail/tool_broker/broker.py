@@ -4,11 +4,12 @@ Routes tool calls to appropriate adapters and handles execution modes.
 """
 
 import logging
-from typing import Dict, Optional, Type
 from dataclasses import dataclass
+from typing import Dict, Optional, Type
 
 from ..adapters.base import ToolAdapter
-from ..models import ToolCall, ToolResult, AgentIdentity, Decision
+from ..models import AgentIdentity, Decision, ToolCall, ToolResult
+from ..sandbox import get_sandbox_executor
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class ToolBroker:
 
     def __init__(self):
         self.adapters: Dict[str, ToolAdapter] = {}
-        self._sandbox_executor = None
+        self._sandbox_executor = get_sandbox_executor()
 
     def register_adapter(self, tool_name: str, adapter: ToolAdapter):
         self.adapters[tool_name] = adapter
@@ -64,11 +65,13 @@ class ToolBroker:
         try:
             logger.info("Executing tool '%s' directly for agent %s", call.tool, context.agent.agent_id)
             result = await adapter.execute(call)
+            sandbox_id = result.metadata.get('sandbox_id') if result.metadata else None
             result.metadata = {
                 **result.metadata,
                 "execution_mode": "direct",
                 "request_id": context.request_id,
                 "agent_id": context.agent.agent_id,
+                "sandbox_id": sandbox_id,
             }
             return result
         except Exception as e:
@@ -76,9 +79,8 @@ class ToolBroker:
             return ToolResult(success=False, error=f"Tool execution failed: {e}", data=None, metadata={"decision": "execution_error"})
 
     async def _execute_sandbox(self, call: ToolCall, context: ExecutionContext) -> ToolResult:
-        logger.warning("Sandbox execution not yet implemented for tool '%s', falling back to direct", call.tool)
         result = await self._execute_direct(call, context)
-        result.metadata["sandbox_fallback"] = True
+        result.metadata["execution_mode"] = "sandbox"
         return result
 
     def get_available_tools(self) -> list[str]:
@@ -101,6 +103,6 @@ def get_tool_broker() -> ToolBroker:
         broker.register_adapter_class("delete_file", FilesystemAdapter, base_path=".")
         broker.register_adapter_class("list_directory", FilesystemAdapter, base_path=".")
         broker.register_adapter_class("http_request", HTTPAdapter)
-        broker.register_adapter_class("exec", ExecAdapter)
+        broker.register_adapter_class("exec", ExecAdapter, sandbox_executor=broker._sandbox_executor)
         _default_tool_broker = broker
     return _default_tool_broker
