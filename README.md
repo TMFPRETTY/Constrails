@@ -1,5 +1,10 @@
 # Constrails
 
+![Alpha](https://img.shields.io/badge/status-alpha-orange)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Tests](https://img.shields.io/badge/tests-33%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
 
 Instead of trusting an agent to self-regulate, Constrails routes meaningful actions through a safety kernel that can:
@@ -433,6 +438,14 @@ Current test coverage includes:
 ## Changelog
 
 See `CHANGELOG.md` for milestone history.
+
+## Contributing
+
+See `CONTRIBUTING.md`.
+
+## Security
+
+See `SECURITY.md`.
 
 ## Safety Note
 
