@@ -85,3 +85,11 @@ def test_auth_revoke_token_json_command():
     assert revoked.exit_code == 0
     assert '"revoked": true' in revoked.output
     assert '"subject": "revoke-me"' in revoked.output
+
+
+
+def test_auth_rotate_secret_json_command():
+    rotated = runner.invoke(cli, ['auth-rotate-secret', '--json'])
+    assert rotated.exit_code == 0
+    assert '"rotated": true' in rotated.output
+    assert '"previous_secret_preserved": true' in rotated.output

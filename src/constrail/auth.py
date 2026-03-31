@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional, Any
+import secrets
 
 from jose import JWTError, jwt
 
@@ -120,6 +121,13 @@ class AuthService:
         finally:
             db.close()
 
+    def rotate_secret(self) -> dict[str, str]:
+        old_secret = settings.secret_key
+        new_secret = secrets.token_urlsafe(32)
+        settings.previous_secret_key = old_secret
+        settings.secret_key = new_secret
+        return {'rotated': True, 'previous_secret_preserved': True, 'new_secret': new_secret}
+
     def is_token_revoked(self, token_id: str | None) -> bool:
         if not token_id:
             return False
@@ -130,19 +138,29 @@ class AuthService:
         finally:
             db.close()
 
+    def _decode_with_secrets(self, token: str) -> dict[str, Any] | None:
+        candidate_secrets = [settings.secret_key]
+        if settings.previous_secret_key:
+            candidate_secrets.append(settings.previous_secret_key)
+        for secret in candidate_secrets:
+            try:
+                return jwt.decode(
+                    token,
+                    secret,
+                    algorithms=[settings.token_algorithm],
+                    audience=settings.token_audience,
+                    issuer=settings.token_issuer,
+                    options={'verify_aud': True, 'verify_iss': True},
+                )
+            except JWTError:
+                continue
+        return None
+
     def authenticate_bearer_token(self, token: str) -> AuthPrincipal | None:
         if not settings.secret_key:
             return None
-        try:
-            payload = jwt.decode(
-                token,
-                settings.secret_key,
-                algorithms=[settings.token_algorithm],
-                audience=settings.token_audience,
-                issuer=settings.token_issuer,
-                options={'verify_aud': True, 'verify_iss': True},
-            )
-        except JWTError:
+        payload = self._decode_with_secrets(token)
+        if payload is None:
             return None
 
         role = payload.get('role')

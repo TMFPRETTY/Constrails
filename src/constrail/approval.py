@@ -54,6 +54,8 @@ class ApprovalService:
             payload = self._build_event_payload(approval, 'approval.created')
             self._enqueue_webhook(approval.approval_id, 'approval.created', payload)
             self._emit_webhook(approval.approval_id, payload)
+            if settings.approval_outbox_auto_drain:
+                self.drain_outbox(limit=settings.approval_outbox_auto_drain_limit)
             return self.get_request(approval.approval_id)
         finally:
             db.close()
@@ -115,6 +117,8 @@ class ApprovalService:
             payload = self._build_event_payload(approval, event)
             self._enqueue_webhook(approval.approval_id, event, payload)
             self._emit_webhook(approval.approval_id, payload)
+            if settings.approval_outbox_auto_drain:
+                self.drain_outbox(limit=settings.approval_outbox_auto_drain_limit)
             return self.get_request(approval.approval_id)
         finally:
             db.close()
@@ -126,6 +130,8 @@ class ApprovalService:
         payload = self._build_retry_payload(approval)
         self._enqueue_webhook(approval.approval_id, 'approval.retry', payload)
         self._emit_webhook(approval.approval_id, payload, allow_exhausted=True)
+        if settings.approval_outbox_auto_drain:
+            self.drain_outbox(limit=settings.approval_outbox_auto_drain_limit)
         return self.get_request(approval.approval_id)
 
     def drain_outbox(self, limit: int = 20) -> dict[str, int]:
@@ -244,7 +250,7 @@ class ApprovalService:
         db = SessionLocal()
         try:
             row = db.query(ApprovalWebhookOutboxModel).filter(ApprovalWebhookOutboxModel.outbox_id == outbox_id).first()
-            if row is None:
+            if row is None or not settings.approval_webhook_url:
                 return False
             try:
                 req = Request(

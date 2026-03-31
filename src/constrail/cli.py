@@ -50,6 +50,7 @@ def auth_status_command(as_json: bool):
         'agent_key_configured': bool(settings.agent_api_key),
         'admin_key_configured': bool(settings.admin_api_key),
         'bearer_tokens_enabled': bool(settings.secret_key),
+        'previous_secret_key_configured': bool(settings.previous_secret_key),
         'token_issuer': settings.token_issuer,
         'token_audience': settings.token_audience,
         'token_expire_minutes': settings.token_expire_minutes,
@@ -120,6 +121,17 @@ def auth_inspect_token_command(token: str, as_json: bool):
 def auth_revoke_token_command(token: str, as_json: bool):
     auth = get_auth_service()
     payload = auth.revoke_token(token)
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
+
+
+@cli.command("auth-rotate-secret", help="Rotate the active bearer signing secret and retain the previous secret temporarily.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def auth_rotate_secret_command(as_json: bool):
+    auth = get_auth_service()
+    payload = auth.rotate_secret()
     if as_json:
         click.echo(json.dumps(payload, indent=2))
         return

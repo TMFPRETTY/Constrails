@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     redis_url: Optional[str] = None
 
     secret_key: str = "change-me-in-production"
+    previous_secret_key: Optional[str] = None
     token_algorithm: str = "HS256"
     token_expire_minutes: int = 30
     token_issuer: str = "constrails"
@@ -62,6 +63,8 @@ class Settings(BaseSettings):
     approval_webhook_url: Optional[str] = None
     approval_auto_approve_low_risk: bool = False
     approval_webhook_max_attempts: int = 3
+    approval_outbox_auto_drain: bool = False
+    approval_outbox_auto_drain_limit: int = 20
 
     anomaly_detection_enabled: bool = True
     anomaly_burst_threshold: int = 100

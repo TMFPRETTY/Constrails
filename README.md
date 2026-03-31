@@ -2,7 +2,7 @@
 
 ![Alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-67%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-70%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -29,7 +29,7 @@ Available today:
 - policy evaluation with built-in fallback when OPA is unavailable
 - expanded starter OPA policy bundle plus OPA-response contract tests and local/CI compose smoke coverage
 - tool broker with filesystem, HTTP, and exec adapters
-- approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, attempt exhaustion tracking, and an approval webhook outbox model
+- approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, attempt exhaustion tracking, an approval webhook outbox model, and optional in-process auto-drain controls
 - local SQLite-backed audit, approval, sandbox execution, token revocation, and capability persistence for development
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
@@ -37,7 +37,7 @@ Available today:
 - a first-class `constrail` CLI entrypoint
 - read-only admin inspection endpoints for audit, sandbox, and capability history
 - filtered admin queries and scoped admin semantics for operational workflows
-- basic admin/agent auth separation with legacy static keys plus a stricter bearer-token auth path with issuer/audience validation and token revocation support
+- basic admin/agent auth separation with legacy static keys plus a stricter bearer-token auth path with issuer/audience validation, token revocation, and a basic secret-rotation bridge
 - deployment examples for Docker Compose + OPA sidecar flow, including a serialized local smoke script
 - automated test coverage for the current MVP spine
 
@@ -45,9 +45,9 @@ Available today:
 
 Constrails has moved well beyond a sketch, but these areas are still maturing toward a more production-grade posture:
 
-- **Approval operations:** an outbox model and drain command now exist, but this is still not a full asynchronous durable queue/outbox service.
+- **Approval operations:** an outbox model, drain command, and optional in-process auto-drain now exist, but this is still not a full asynchronous durable queue/outbox service.
 - **Sandbox validation breadth:** Docker posture and local smoke coverage are stronger, but broader validation across more deployment targets is still warranted.
-- **Identity/auth lifecycle:** bearer tokens now support issuer/audience validation and revocation, but issuance, rotation, and stronger identity lifecycle controls can still mature further.
+- **Identity/auth lifecycle:** bearer tokens now support issuer/audience validation, revocation, and a basic rotation bridge, but stronger issuance and key-management lifecycle controls can still mature further.
 - **OPA live integration depth:** local and CI live-path smoke coverage exists, but richer live-policy assertions across more decision classes can still deepen confidence.
 - **Distribution ergonomics:** install and release flows are better than they were, but broader packaging/distribution polish is still possible.
 
@@ -77,8 +77,8 @@ Core components in this repository:
 - `src/constrail/capability_store.py` - capability manifest persistence and lifecycle helpers
 - `src/constrail/risk/risk_engine.py` - heuristic risk scoring
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
-- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, retry, exhaustion, and outbox helpers
-- `src/constrail/auth.py` - alpha auth principal, static-key auth, bearer-token helpers, and revocation support
+- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, retry, exhaustion, outbox helpers, and optional in-process auto-drain hooks
+- `src/constrail/auth.py` - alpha auth principal, static-key auth, bearer-token helpers, revocation support, and basic secret-rotation bridging
 - `src/constrail/sandbox.py` - sandbox executor abstraction, posture reporting, and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
 - `src/constrail/database.py` - development database models and session management
@@ -177,7 +177,7 @@ Current development defaults:
 - sandbox mode: `development`
 - filesystem adapter base path: current repository working directory
 - auth mode: legacy static keys plus a stricter alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
-- approval webhooks: optional, with delivery tracking, retry support, outbox state, and attempt limits
+- approval webhooks: optional, with delivery tracking, retry support, outbox state, auto-drain controls, and attempt limits
 
 These defaults are intentionally optimized for local bring-up, not for final production deployment.
 
@@ -269,6 +269,7 @@ Agent and admin requests can still use `X-API-Key`, and alpha bearer tokens are 
 constrail auth-mint-token --role agent --subject local-agent --tenant default --namespace dev --agent-id dev-agent --json
 constrail auth-inspect-token <token> --json
 constrail auth-revoke-token <token> --json
+constrail auth-rotate-secret --json
 ```
 
 `doctor --json` and `sandbox-validate --json` expose sandbox posture fields such as:
@@ -277,6 +278,7 @@ constrail auth-revoke-token <token> --json
 - `sandbox_require_image_digest`
 - `sandbox_allow_host_network`
 - `sandbox_workspace_mount_readonly`
+- `checks`
 - `production_ready`
 - `warnings`
 
@@ -372,7 +374,7 @@ Current test coverage includes:
 - fail-closed behavior
 - broker dispatch
 - filesystem adapter behavior
-- approval request lifecycle, webhook delivery tracking, retry, exhaustion behavior, and outbox operator flows
+- approval request lifecycle, webhook delivery tracking, retry, exhaustion behavior, outbox operator flows, and optional auto-drain controls
 - capability constraints and lifecycle management
 - exec adapter sandbox behavior
 - sandbox executor selection, posture reporting, and replay flow
