@@ -28,6 +28,8 @@ class AuditRecordResponse(BaseModel):
     auth_subject: Optional[str] = None
     auth_token_id: Optional[str] = None
     auth_key_id: Optional[str] = None
+    chain_prev_hash: Optional[str] = None
+    chain_hash: Optional[str] = None
     sandbox_id: Optional[str] = None
     execution_result: Optional[dict[str, Any]] = None
     error: Optional[str] = None
@@ -54,6 +56,8 @@ class AuditRecordResponse(BaseModel):
             auth_subject=getattr(row, 'auth_subject', None),
             auth_token_id=getattr(row, 'auth_token_id', None),
             auth_key_id=getattr(row, 'auth_key_id', None),
+            chain_prev_hash=getattr(row, 'chain_prev_hash', None),
+            chain_hash=getattr(row, 'chain_hash', None),
             sandbox_id=row.sandbox_id,
             execution_result=row.execution_result,
             error=row.error,

@@ -3,6 +3,8 @@ Constrail Kernel - Core safety kernel for agent action governance.
 Implements the full request lifecycle.
 """
 
+import hashlib
+import json
 import logging
 import time
 import uuid
@@ -299,6 +301,43 @@ class ConstrailKernel:
             sandbox_id=sandbox_id,
         )
 
+    def _compute_audit_chain_hash(
+        self,
+        *,
+        prev_hash: str | None,
+        request: ActionRequest,
+        request_id: str,
+        risk_assessment,
+        policy_evaluation,
+        final_decision: Decision,
+        error: Optional[str],
+        approval_id,
+        replayed_from_approval_id,
+        sandbox_id: Optional[str],
+        auth_context: dict,
+    ) -> str:
+        payload = {
+            'prev_hash': prev_hash,
+            'request_id': request_id,
+            'agent_id': request.agent.agent_id,
+            'tool': request.call.tool,
+            'parameters': request.call.parameters,
+            'risk_score': risk_assessment.score,
+            'risk_level': risk_assessment.level.value,
+            'policy_decision': policy_evaluation.decision.value,
+            'final_decision': final_decision.value,
+            'approval_id': str(approval_id) if approval_id else None,
+            'replayed_from_approval_id': str(replayed_from_approval_id) if replayed_from_approval_id else None,
+            'sandbox_id': sandbox_id,
+            'error': error,
+            'auth_type': auth_context.get('auth_type'),
+            'auth_subject': auth_context.get('auth_subject'),
+            'auth_token_id': auth_context.get('auth_token_id'),
+            'auth_key_id': auth_context.get('auth_key_id'),
+        }
+        encoded = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode('utf-8')
+        return hashlib.sha256(encoded).hexdigest()
+
     async def _log_audit(
         self,
         request: ActionRequest,
@@ -342,6 +381,22 @@ class ConstrailKernel:
         db = None
         try:
             db = SessionLocal()
+            previous = db.query(AuditRecordModel).order_by(AuditRecordModel.start_time.desc()).first()
+            prev_hash = getattr(previous, 'chain_hash', None) if previous is not None else None
+            audit_record.chain_prev_hash = prev_hash
+            audit_record.chain_hash = self._compute_audit_chain_hash(
+                prev_hash=prev_hash,
+                request=request,
+                request_id=request_id,
+                risk_assessment=risk_assessment,
+                policy_evaluation=policy_evaluation,
+                final_decision=final_decision,
+                error=error,
+                approval_id=approval_id,
+                replayed_from_approval_id=replayed_from_approval_id,
+                sandbox_id=sandbox_id,
+                auth_context=auth_context,
+            )
             db.add(audit_record)
             db.commit()
             logger.debug("Audit record saved for request %s", request_id)

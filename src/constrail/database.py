@@ -52,6 +52,8 @@ class AuditRecordModel(Base):
     auth_subject = Column(String, nullable=True)
     auth_token_id = Column(String, nullable=True, index=True)
     auth_key_id = Column(String, nullable=True)
+    chain_prev_hash = Column(String, nullable=True)
+    chain_hash = Column(String, nullable=True, index=True)
     sandbox_id = Column(String, nullable=True)
     execution_result = Column(JSON, nullable=True)
     error = Column(Text, nullable=True)
