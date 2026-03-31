@@ -27,6 +27,13 @@ class CapabilityStore:
         finally:
             db.close()
 
+    def get_manifest(self, manifest_id: int) -> Optional[CapabilityManifestModel]:
+        db = SessionLocal()
+        try:
+            return db.query(CapabilityManifestModel).filter(CapabilityManifestModel.id == manifest_id).first()
+        finally:
+            db.close()
+
     def create_manifest(
         self,
         agent_id: str,
@@ -51,6 +58,48 @@ class CapabilityStore:
             db.commit()
             db.refresh(row)
             return row
+        finally:
+            db.close()
+
+    def deactivate_manifest(self, manifest_id: int) -> Optional[CapabilityManifestModel]:
+        db = SessionLocal()
+        try:
+            row = db.query(CapabilityManifestModel).filter(CapabilityManifestModel.id == manifest_id).first()
+            if row is None:
+                return None
+            row.active = False
+            db.commit()
+            db.refresh(row)
+            return row
+        finally:
+            db.close()
+
+    def create_next_version(
+        self,
+        manifest_id: int,
+        allowed_tools: Optional[list[dict]] = None,
+        activate: bool = True,
+    ) -> Optional[CapabilityManifestModel]:
+        db = SessionLocal()
+        try:
+            row = db.query(CapabilityManifestModel).filter(CapabilityManifestModel.id == manifest_id).first()
+            if row is None:
+                return None
+            if activate:
+                row.active = False
+            new_row = CapabilityManifestModel(
+                agent_id=row.agent_id,
+                tenant_id=row.tenant_id,
+                namespace=row.namespace,
+                version=row.version + 1,
+                allowed_tools=allowed_tools if allowed_tools is not None else row.allowed_tools,
+                created_at=datetime.utcnow(),
+                active=activate,
+            )
+            db.add(new_row)
+            db.commit()
+            db.refresh(new_row)
+            return new_row
         finally:
             db.close()
 

@@ -102,12 +102,7 @@ def audit_list_command(limit: int, as_json: bool):
     init_db()
     db = SessionLocal()
     try:
-        rows = (
-            db.query(AuditRecordModel)
-            .order_by(AuditRecordModel.start_time.desc())
-            .limit(limit)
-            .all()
-        )
+        rows = db.query(AuditRecordModel).order_by(AuditRecordModel.start_time.desc()).limit(limit).all()
         payload = [
             {
                 "request_id": str(row.request_id),
@@ -129,13 +124,7 @@ def audit_list_command(limit: int, as_json: bool):
         table.add_column("Agent")
         table.add_column("Sandbox")
         for row in payload:
-            table.add_row(
-                row["request_id"],
-                row["tool"],
-                row["decision"],
-                row["agent_id"],
-                row["sandbox_id"] or "-",
-            )
+            table.add_row(row["request_id"], row["tool"], row["decision"], row["agent_id"], row["sandbox_id"] or "-")
         console.print(table)
     finally:
         db.close()
@@ -148,12 +137,7 @@ def sandbox_list_command(limit: int, as_json: bool):
     init_db()
     db = SessionLocal()
     try:
-        rows = (
-            db.query(SandboxExecutionModel)
-            .order_by(SandboxExecutionModel.created_at.desc())
-            .limit(limit)
-            .all()
-        )
+        rows = db.query(SandboxExecutionModel).order_by(SandboxExecutionModel.created_at.desc()).limit(limit).all()
         payload = [
             {
                 "sandbox_id": row.sandbox_id,
@@ -175,13 +159,7 @@ def sandbox_list_command(limit: int, as_json: bool):
         table.add_column("Tool")
         table.add_column("Approval ID")
         for row in payload:
-            table.add_row(
-                row["sandbox_id"],
-                row["executor"] or "-",
-                row["status"],
-                row["tool"],
-                row["approval_id"] or "-",
-            )
+            table.add_row(row["sandbox_id"], row["executor"] or "-", row["status"], row["tool"], row["approval_id"] or "-")
         console.print(table)
     finally:
         db.close()
@@ -218,15 +196,56 @@ def capability_list_command(agent_id: str | None, active: bool, as_json: bool):
     table.add_column("Version")
     table.add_column("Active")
     for row in payload:
-        table.add_row(
-            str(row["id"]),
-            row["agent_id"],
-            row["tenant_id"] or "-",
-            row["namespace"] or "-",
-            str(row["version"]),
-            str(row["active"]),
-        )
+        table.add_row(str(row["id"]), row["agent_id"], row["tenant_id"] or "-", row["namespace"] or "-", str(row["version"]), str(row["active"]))
     console.print(table)
+
+
+@cli.command("capability-create", help="Create a capability manifest record.")
+@click.option("--agent", "agent_id", required=True, help="Agent identifier.")
+@click.option("--tenant", "tenant_id", default=None, help="Tenant identifier.")
+@click.option("--namespace", default=None, help="Namespace identifier.")
+@click.option("--tool", "tools", multiple=True, required=True, help="Allowed tool name. Repeat for multiple tools.")
+@click.option("--activate/--inactive", default=True, help="Whether the new manifest should be active.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def capability_create_command(agent_id: str, tenant_id: str | None, namespace: str | None, tools: tuple[str, ...], activate: bool, as_json: bool):
+    init_db()
+    store = get_capability_store()
+    existing = store.list_manifests(agent_id=agent_id)
+    next_version = max((row.version for row in existing), default=0) + 1
+    row = store.create_manifest(agent_id=agent_id, tenant_id=tenant_id, namespace=namespace, version=next_version, allowed_tools=[{"tool": tool} for tool in tools], active=activate)
+    payload = {"id": row.id, "agent_id": row.agent_id, "tenant_id": row.tenant_id, "namespace": row.namespace, "version": row.version, "active": row.active}
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print(f"[green]Created capability manifest {row.id} (v{row.version})[/green]")
+
+
+@cli.command("capability-deactivate", help="Deactivate a capability manifest.")
+@click.argument("manifest_id", type=int)
+def capability_deactivate_command(manifest_id: int):
+    init_db()
+    store = get_capability_store()
+    row = store.deactivate_manifest(manifest_id)
+    if row is None:
+        raise click.ClickException("Capability manifest not found")
+    console.print(f"[yellow]Deactivated capability manifest {row.id}[/yellow]")
+
+
+@cli.command("capability-bump", help="Create the next version of a capability manifest.")
+@click.argument("manifest_id", type=int)
+@click.option("--activate/--inactive", default=True, help="Whether the new manifest version should be active.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def capability_bump_command(manifest_id: int, activate: bool, as_json: bool):
+    init_db()
+    store = get_capability_store()
+    row = store.create_next_version(manifest_id, activate=activate)
+    if row is None:
+        raise click.ClickException("Capability manifest not found")
+    payload = {"id": row.id, "agent_id": row.agent_id, "tenant_id": row.tenant_id, "namespace": row.namespace, "version": row.version, "active": row.active}
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print(f"[green]Created capability manifest version {row.version} (id={row.id})[/green]")
 
 
 @cli.command("approval-list", help="List recent approval requests.")
@@ -250,16 +269,7 @@ def approval_list_command(limit: int, approved: str | None, agent_id: str | None
     if approved == "pending":
         rows = [row for row in rows if row.approved is None]
 
-    payload = [
-        {
-            "approval_id": str(row.approval_id),
-            "tool": row.tool,
-            "agent_id": row.agent_id,
-            "approved": row.approved,
-            "approver_id": row.approver_id,
-        }
-        for row in rows
-    ]
+    payload = [{"approval_id": str(row.approval_id), "tool": row.tool, "agent_id": row.agent_id, "approved": row.approved, "approver_id": row.approver_id} for row in rows]
     if as_json:
         click.echo(json.dumps(payload, indent=2))
         return
@@ -271,13 +281,7 @@ def approval_list_command(limit: int, approved: str | None, agent_id: str | None
     table.add_column("Approved")
     table.add_column("Approver")
     for row in payload:
-        table.add_row(
-            row["approval_id"],
-            row["tool"],
-            row["agent_id"],
-            str(row["approved"]),
-            row["approver_id"] or "-",
-        )
+        table.add_row(row["approval_id"], row["tool"], row["agent_id"], str(row["approved"]), row["approver_id"] or "-")
     console.print(table)
 
 
@@ -290,16 +294,7 @@ def approval_show_command(approval_id: str, as_json: bool):
     row = service.get_request(UUID(approval_id))
     if row is None:
         raise click.ClickException("Approval request not found")
-    payload = {
-        "approval_id": str(row.approval_id),
-        "request_id": str(row.request_id),
-        "agent_id": row.agent_id,
-        "tool": row.tool,
-        "parameters": row.parameters,
-        "approved": row.approved,
-        "approver_id": row.approver_id,
-        "review_comment": row.review_comment,
-    }
+    payload = {"approval_id": str(row.approval_id), "request_id": str(row.request_id), "agent_id": row.agent_id, "tool": row.tool, "parameters": row.parameters, "approved": row.approved, "approver_id": row.approver_id, "review_comment": row.review_comment}
     if as_json:
         click.echo(json.dumps(payload, indent=2))
         return
