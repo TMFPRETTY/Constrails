@@ -24,7 +24,7 @@ def test_capability_manager_reload_is_used_by_kernel():
 def test_read_file_happy_path():
     kernel = ConstrailKernel()
     req = ActionRequest(
-        agent=AgentIdentity(agent_id='dev-agent', trust_level=0.8),
+        agent=AgentIdentity(agent_id='dev-agent', tenant_id='default', namespace='dev', trust_level=0.8),
         call=ToolCall(tool='read_file', parameters={'path': 'README.md'}),
         context={'goal': 'test read file'},
     )
@@ -40,7 +40,7 @@ def test_read_file_happy_path():
 def test_list_directory_happy_path():
     kernel = ConstrailKernel()
     req = ActionRequest(
-        agent=AgentIdentity(agent_id='dev-agent', trust_level=0.8),
+        agent=AgentIdentity(agent_id='dev-agent', tenant_id='default', namespace='dev', trust_level=0.8),
         call=ToolCall(tool='list_directory', parameters={'path': '.'}),
         context={'goal': 'test list directory'},
     )
@@ -57,7 +57,7 @@ def test_list_directory_happy_path():
 def test_missing_manifest_denies_unknown_agent():
     kernel = ConstrailKernel()
     req = ActionRequest(
-        agent=AgentIdentity(agent_id='unknown-agent', trust_level=0.8),
+        agent=AgentIdentity(agent_id='unknown-agent', tenant_id='default', namespace='dev', trust_level=0.8),
         call=ToolCall(tool='read_file', parameters={'path': 'README.md'}),
         context={'goal': 'unknown agent should fail closed'},
     )
@@ -71,7 +71,7 @@ def test_missing_manifest_denies_unknown_agent():
 def test_exec_requires_approval_or_higher_control():
     kernel = ConstrailKernel()
     req = ActionRequest(
-        agent=AgentIdentity(agent_id='dev-agent', trust_level=0.8),
+        agent=AgentIdentity(agent_id='dev-agent', tenant_id='default', namespace='dev', trust_level=0.8),
         call=ToolCall(tool='exec', parameters={'command': 'echo hello'}),
         context={'goal': 'exec should not be directly allowed by simple fallback'},
     )

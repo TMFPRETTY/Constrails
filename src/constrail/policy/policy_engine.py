@@ -67,24 +67,66 @@ class PolicyEngine:
 
     def _evaluate_simple(self, request: ActionRequest, risk: RiskAssessment) -> PolicyEvaluation:
         tool = request.call.tool
-        risk_level = risk.level
+        risk_level = risk.level.value
+        tenant_id = request.agent.tenant_id
+        params = request.call.parameters or {}
 
-        high_risk_tools = {"exec", "shell", "write_file", "delete_file", "network", "http_request"}
-        if tool in high_risk_tools:
+        if not tenant_id:
             return PolicyEvaluation(
-                decision=Decision.APPROVAL_REQUIRED,
-                rule_ids=["simple_fallback_high_risk_tool"],
-                message=f"Tool '{tool}' requires approval",
+                decision=Decision.DENY,
+                rule_ids=["simple_missing_tenant_scope"],
+                message="Tenant scope required",
             )
 
-        if risk_level.value == "critical":
+        if risk_level == "critical":
             return PolicyEvaluation(
                 decision=Decision.DENY,
                 rule_ids=["simple_fallback_critical_risk"],
                 message="Critical risk level",
             )
 
-        if risk_level.value == "high":
+        if tool == "delete_file":
+            path = str(params.get("path", ""))
+            if path.startswith("/") and not path.startswith("/tmp/"):
+                return PolicyEvaluation(
+                    decision=Decision.DENY,
+                    rule_ids=["simple_deny_destructive_target"],
+                    message="Deleting non-temporary absolute paths is denied",
+                )
+            return PolicyEvaluation(
+                decision=Decision.APPROVAL_REQUIRED,
+                rule_ids=["simple_delete_requires_approval"],
+                message="Delete operations require approval",
+            )
+
+        if tool in {"exec", "shell", "network", "write_file"}:
+            return PolicyEvaluation(
+                decision=Decision.APPROVAL_REQUIRED,
+                rule_ids=["simple_fallback_high_risk_tool"],
+                message=f"Tool '{tool}' requires approval",
+            )
+
+        if tool == "http_request":
+            url = str(params.get("url", ""))
+            if url.startswith("http://"):
+                return PolicyEvaluation(
+                    decision=Decision.SANDBOX,
+                    rule_ids=["simple_http_requires_sandbox"],
+                    message="Plain HTTP requests require sandboxing",
+                )
+            if url.startswith("https://"):
+                return PolicyEvaluation(
+                    decision=Decision.ALLOW,
+                    rule_ids=["simple_allow_https_request"],
+                    message="HTTPS request allowed",
+                )
+            return PolicyEvaluation(
+                decision=Decision.APPROVAL_REQUIRED,
+                rule_ids=["simple_http_unknown_scheme"],
+                message="Unrecognized HTTP target requires approval",
+            )
+
+        if risk_level == "high":
             return PolicyEvaluation(
                 decision=Decision.SANDBOX,
                 rule_ids=["simple_fallback_high_risk"],
@@ -108,6 +150,14 @@ class PolicyEngine:
             "policy_package": self.policy_package,
             "rego_files": rego_files,
             "fallback_mode": True,
+            "policy_features": [
+                "tenant_scope_required",
+                "critical_risk_denial",
+                "approval_for_high_risk_tools",
+                "sandbox_for_high_risk_execution",
+                "https_allowance",
+                "destructive_path_guardrails",
+            ],
         }
 
 

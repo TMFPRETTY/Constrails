@@ -24,6 +24,7 @@ allow := {
   "rule_ids": ["allow_read_file"]
 } if {
   input.request.call.tool == "read_file"
+  input.request.agent.tenant_id != null
 }
 
 allow := {
@@ -33,4 +34,17 @@ allow := {
   "rule_ids": ["allow_list_directory"]
 } if {
   input.request.call.tool == "list_directory"
+  input.request.agent.tenant_id != null
+}
+
+allow := {
+  "allow": true,
+  "decision": "allow",
+  "message": "HTTPS requests to allowed domains are permitted",
+  "rule_ids": ["allow_https_request"]
+} if {
+  input.request.call.tool == "http_request"
+  startswith(input.request.call.parameters.url, "https://")
+  input.request.agent.tenant_id != null
+  not approvals.match
 }
