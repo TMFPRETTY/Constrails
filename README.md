@@ -23,7 +23,7 @@ Available today:
 - policy evaluation with built-in fallback when OPA is unavailable
 - tool broker with filesystem, HTTP, and exec adapters
 - approval request lifecycle and approval API endpoints
-- local SQLite-backed audit and approval persistence for development
+- local SQLite-backed audit, approval, and sandbox execution persistence for development
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
 - opt-in Docker sandbox executor path
@@ -268,6 +268,7 @@ Current test coverage includes:
 - capability constraints
 - exec adapter sandbox behavior
 - sandbox executor selection and replay flow
+- audit and sandbox provenance linkage for approved replays
 
 ## Safety Note
 

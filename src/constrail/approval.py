@@ -99,6 +99,12 @@ class ApprovalService:
         finally:
             db.close()
 
+    def get_approver_id(self, approval_id: UUID) -> Optional[str]:
+        approval = self.get_request(approval_id)
+        if approval is None:
+            return None
+        return approval.approver_id
+
 
 _default_approval_service: Optional[ApprovalService] = None
 

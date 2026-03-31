@@ -21,6 +21,7 @@ from .database import (
 from .models import ActionRequest, ActionResponse, Decision, RiskLevel, ToolResult
 from .policy.policy_engine import get_policy_engine
 from .risk.risk_engine import get_risk_engine
+from .sandbox_records import get_sandbox_execution_service
 from .tool_broker.broker import ExecutionContext
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class ConstrailKernel:
         self.policy_engine = get_policy_engine()
         self.capability_manager = get_capability_manager()
         self.approval_service = get_approval_service()
+        self.sandbox_execution_service = get_sandbox_execution_service()
         self.tool_broker = None
 
     async def process(self, request: ActionRequest) -> ActionResponse:
@@ -69,6 +71,8 @@ class ConstrailKernel:
         error = None
         sandbox_id = None
         approval_id = None
+        approver_id = None
+        replayed_from_approval_id = None
 
         if final_decision == Decision.DENY:
             logger.info("Request %s denied by policy", request_id)
@@ -105,6 +109,9 @@ class ConstrailKernel:
                     "Approval required",
                     sandbox_id,
                     duration_ms,
+                    approval_id=approval_id,
+                    approver_id=None,
+                    replayed_from_approval_id=None,
                 )
                 return ActionResponse(
                     request_id=uuid.UUID(request_id),
@@ -136,6 +143,9 @@ class ConstrailKernel:
             error,
             sandbox_id,
             duration_ms,
+            approval_id=approval_id,
+            approver_id=approver_id,
+            replayed_from_approval_id=replayed_from_approval_id,
         )
 
         return ActionResponse(
@@ -224,19 +234,53 @@ class ConstrailKernel:
             context={"approval_replay": True, "approval_id": str(approval_id)},
         )
 
+        request_id = str(uuid.uuid4())
+        start_time = time.time()
         risk_assessment = self.risk_engine.assess(request)
-        await self.policy_engine.evaluate(request, risk_assessment)
+        policy_evaluation = await self.policy_engine.evaluate(request, risk_assessment)
         forced_decision = Decision.SANDBOX if approval.tool == "exec" else Decision.ALLOW
         execution_result = await self._execute_tool(
             request,
             forced_decision,
-            str(uuid.uuid4()),
+            request_id,
             risk_assessment.level.value,
         )
         sandbox_id = execution_result.metadata.get("sandbox_id") if execution_result else None
         error = None if execution_result.success else execution_result.error
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        if sandbox_id and execution_result is not None:
+            self.sandbox_execution_service.record_execution(
+                sandbox_id=sandbox_id,
+                request_id=uuid.UUID(request_id),
+                approval_id=approval_id,
+                agent_id=request.agent.agent_id,
+                tool=request.call.tool,
+                parameters=request.call.parameters,
+                executor=execution_result.metadata.get("sandbox_executor"),
+                status="completed" if execution_result.success else "failed",
+                result=execution_result.model_dump(mode="json"),
+                error=error,
+                duration_ms=duration_ms,
+            )
+
+        await self._log_audit(
+            request,
+            request_id,
+            risk_assessment,
+            policy_evaluation,
+            forced_decision,
+            execution_result,
+            error,
+            sandbox_id,
+            duration_ms,
+            approval_id=approval_id,
+            approver_id=approval.approver_id,
+            replayed_from_approval_id=approval_id,
+        )
+
         return ActionResponse(
-            request_id=uuid.uuid4(),
+            request_id=uuid.UUID(request_id),
             decision=Decision.ALLOW,
             result=execution_result.model_dump() if execution_result else None,
             error=error,
@@ -255,6 +299,9 @@ class ConstrailKernel:
         error: Optional[str],
         sandbox_id: Optional[str],
         duration_ms: int,
+        approval_id=None,
+        approver_id: Optional[str] = None,
+        replayed_from_approval_id=None,
     ):
         audit_record = AuditRecordModel(
             request_id=uuid.UUID(request_id),
@@ -265,9 +312,11 @@ class ConstrailKernel:
             risk_level=DBRiskLevel(risk_assessment.level.value),
             policy_decision=DBDecision(policy_evaluation.decision.value),
             final_decision=DBDecision(final_decision.value),
-            approver_id=None,
+            approver_id=approver_id,
+            approval_id=approval_id,
+            replayed_from_approval_id=replayed_from_approval_id,
             sandbox_id=sandbox_id,
-            execution_result=execution_result.model_dump() if execution_result else None,
+            execution_result=execution_result.model_dump(mode="json") if execution_result else None,
             error=error,
             start_time=datetime.utcnow(),
             end_time=datetime.utcnow(),

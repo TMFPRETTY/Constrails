@@ -1,5 +1,6 @@
 import asyncio
 
+from constrail.database import AuditRecordModel, SessionLocal, SandboxExecutionModel
 from constrail.kernel_v2 import ConstrailKernel
 from constrail.models import ActionRequest, AgentIdentity, Decision, ToolCall
 
@@ -38,3 +39,28 @@ def test_exec_replay_runs_through_sandbox_after_approval():
     assert replayed.result['metadata']['execution_mode'] == 'sandbox'
     assert replayed.result['metadata']['sandbox_executor'] == 'dev'
     assert 'sandboxed' in replayed.result['data']['stdout']
+
+    db = SessionLocal()
+    try:
+        sandbox_row = (
+            db.query(SandboxExecutionModel)
+            .filter(SandboxExecutionModel.sandbox_id == replayed.sandbox_id)
+            .first()
+        )
+        assert sandbox_row is not None
+        assert sandbox_row.approval_id == initial.approval_id
+        assert sandbox_row.executor == 'dev'
+        assert sandbox_row.status == 'completed'
+
+        audit_row = (
+            db.query(AuditRecordModel)
+            .filter(AuditRecordModel.replayed_from_approval_id == initial.approval_id)
+            .order_by(AuditRecordModel.start_time.desc())
+            .first()
+        )
+        assert audit_row is not None
+        assert audit_row.approval_id == initial.approval_id
+        assert audit_row.approver_id == 'tmfpretty'
+        assert audit_row.sandbox_id == replayed.sandbox_id
+    finally:
+        db.close()
