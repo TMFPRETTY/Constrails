@@ -10,6 +10,7 @@ import time
 import uuid
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 from .approval import get_approval_service
 from .capability.manager import get_capability_manager
@@ -188,9 +189,20 @@ class ConstrailKernel:
         risk_level: str,
     ) -> Optional[ToolResult]:
         if self.tool_broker is None:
-            from .tool_broker.broker import get_tool_broker
+            from .tool_broker.broker import ToolBroker
+            from .adapters.exec import ExecAdapter
+            from .adapters.filesystem import FilesystemAdapter
+            from .adapters.http import HTTPAdapter
+            from .sandbox import get_sandbox_executor
 
-            self.tool_broker = get_tool_broker()
+            broker = ToolBroker()
+            broker.register_adapter_class("read_file", FilesystemAdapter, base_path=".")
+            broker.register_adapter_class("write_file", FilesystemAdapter, base_path=".")
+            broker.register_adapter_class("delete_file", FilesystemAdapter, base_path=".")
+            broker.register_adapter_class("list_directory", FilesystemAdapter, base_path=".")
+            broker.register_adapter_class("http_request", HTTPAdapter)
+            broker.register_adapter_class("exec", ExecAdapter, sandbox_executor=get_sandbox_executor())
+            self.tool_broker = broker
 
         context = ExecutionContext(
             agent=request.agent,
@@ -338,6 +350,15 @@ class ConstrailKernel:
         encoded = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode('utf-8')
         return hashlib.sha256(encoded).hexdigest()
 
+    def _normalize_uuidish(self, value):
+        if value is None:
+            return None
+        if isinstance(value, UUID):
+            return value
+        if isinstance(value, str):
+            return UUID(value)
+        raise TypeError(f"Unsupported UUID value: {value!r} ({type(value).__name__})")
+
     async def _log_audit(
         self,
         request: ActionRequest,
@@ -354,8 +375,29 @@ class ConstrailKernel:
         replayed_from_approval_id=None,
     ):
         auth_context = request.context.get('auth', {}) if isinstance(request.context, dict) else {}
+        try:
+            normalized_request_id = self._normalize_uuidish(request_id)
+            normalized_approval_id = self._normalize_uuidish(approval_id)
+            normalized_replayed_from_approval_id = self._normalize_uuidish(replayed_from_approval_id)
+        except Exception:
+            logger.exception(
+                "Audit UUID normalization failed request_id=%r approval_id=%r replayed_from_approval_id=%r",
+                request_id,
+                approval_id,
+                replayed_from_approval_id,
+            )
+            raise
+        logger.debug(
+            "Audit UUIDs request_id=%r(%s) approval_id=%r(%s) replayed_from_approval_id=%r(%s)",
+            normalized_request_id,
+            type(normalized_request_id).__name__,
+            normalized_approval_id,
+            type(normalized_approval_id).__name__ if normalized_approval_id is not None else 'None',
+            normalized_replayed_from_approval_id,
+            type(normalized_replayed_from_approval_id).__name__ if normalized_replayed_from_approval_id is not None else 'None',
+        )
         audit_record = AuditRecordModel(
-            request_id=uuid.UUID(request_id),
+            request_id=normalized_request_id,
             agent_id=request.agent.agent_id,
             tool=request.call.tool,
             parameters=request.call.parameters,
@@ -364,8 +406,8 @@ class ConstrailKernel:
             policy_decision=DBDecision(policy_evaluation.decision.value),
             final_decision=DBDecision(final_decision.value),
             approver_id=approver_id,
-            approval_id=approval_id,
-            replayed_from_approval_id=replayed_from_approval_id,
+            approval_id=normalized_approval_id,
+            replayed_from_approval_id=normalized_replayed_from_approval_id,
             auth_type=auth_context.get('auth_type'),
             auth_subject=auth_context.get('auth_subject'),
             auth_token_id=auth_context.get('auth_token_id'),
@@ -381,19 +423,19 @@ class ConstrailKernel:
         db = None
         try:
             db = SessionLocal()
-            previous = db.query(AuditRecordModel).order_by(AuditRecordModel.start_time.desc()).first()
-            prev_hash = getattr(previous, 'chain_hash', None) if previous is not None else None
+            previous_hash_rows = db.query(AuditRecordModel.chain_hash).order_by(AuditRecordModel.start_time.asc()).all()
+            prev_hash = previous_hash_rows[-1][0] if previous_hash_rows else None
             audit_record.chain_prev_hash = prev_hash
             audit_record.chain_hash = self._compute_audit_chain_hash(
                 prev_hash=prev_hash,
                 request=request,
-                request_id=request_id,
+                request_id=str(normalized_request_id),
                 risk_assessment=risk_assessment,
                 policy_evaluation=policy_evaluation,
                 final_decision=final_decision,
                 error=error,
-                approval_id=approval_id,
-                replayed_from_approval_id=replayed_from_approval_id,
+                approval_id=normalized_approval_id,
+                replayed_from_approval_id=normalized_replayed_from_approval_id,
                 sandbox_id=sandbox_id,
                 auth_context=auth_context,
             )

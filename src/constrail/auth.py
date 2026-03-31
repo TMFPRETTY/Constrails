@@ -13,7 +13,7 @@ import secrets
 from jose import JWTError, jwt
 
 from .config import settings
-from .database import RevokedTokenModel, SessionLocal, SigningKeyModel
+from .database import RevokedTokenModel, SessionLocal, SigningKeyModel, init_db
 
 
 Role = Literal['agent', 'admin']
@@ -45,6 +45,7 @@ class AuthService:
         self._ensure_key_registry()
 
     def _ensure_key_registry(self):
+        init_db()
         db = SessionLocal()
         try:
             active = db.query(SigningKeyModel).filter(SigningKeyModel.status == 'active').first()

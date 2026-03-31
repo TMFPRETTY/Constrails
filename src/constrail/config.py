@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     anomaly_detection_enabled: bool = True
     anomaly_burst_threshold: int = 100
     anomaly_new_tool_alert: bool = True
+    exfiltration_lookback_limit: int = 20
+    exfiltration_read_then_network_enabled: bool = True
 
 
 def get_settings() -> Settings:

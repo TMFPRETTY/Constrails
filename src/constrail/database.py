@@ -8,14 +8,34 @@ from datetime import datetime
 from enum import Enum as PythonEnum
 
 from sqlalchemy import Boolean, Column, DateTime, Enum as SQLEnum, Float, Integer, JSON, String, Text, create_engine
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.types import CHAR, TypeDecorator
 
 from .config import settings
 
 logger = logging.getLogger(__name__)
 
 Base = declarative_base()
+
+
+class GUID(TypeDecorator):
+    impl = CHAR
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        return dialect.type_descriptor(CHAR(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return str(value)
+        return str(uuid.UUID(str(value)))
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return uuid.UUID(str(value))
 
 
 class Decision(PythonEnum):
@@ -36,8 +56,8 @@ class RiskLevel(PythonEnum):
 class AuditRecordModel(Base):
     __tablename__ = "audit_records"
 
-    audit_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    request_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    audit_id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    request_id = Column(GUID(), nullable=False, index=True)
     agent_id = Column(String, nullable=False, index=True)
     tool = Column(String, nullable=False)
     parameters = Column(JSON, nullable=False)
@@ -46,8 +66,8 @@ class AuditRecordModel(Base):
     policy_decision = Column(SQLEnum(Decision), nullable=False)
     final_decision = Column(SQLEnum(Decision), nullable=False)
     approver_id = Column(String, nullable=True)
-    approval_id = Column(UUID(as_uuid=True), nullable=True, index=True)
-    replayed_from_approval_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    approval_id = Column(GUID(), nullable=True, index=True)
+    replayed_from_approval_id = Column(GUID(), nullable=True, index=True)
     auth_type = Column(String, nullable=True)
     auth_subject = Column(String, nullable=True)
     auth_token_id = Column(String, nullable=True, index=True)
@@ -65,8 +85,8 @@ class AuditRecordModel(Base):
 class ApprovalRequestModel(Base):
     __tablename__ = "approval_requests"
 
-    approval_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    request_id = Column(UUID(as_uuid=True), nullable=False, unique=True, index=True)
+    approval_id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    request_id = Column(GUID(), nullable=False, unique=True, index=True)
     agent_id = Column(String, nullable=False, index=True)
     tool = Column(String, nullable=False)
     parameters = Column(JSON, nullable=False)
@@ -91,8 +111,8 @@ class ApprovalRequestModel(Base):
 class ApprovalWebhookOutboxModel(Base):
     __tablename__ = "approval_webhook_outbox"
 
-    outbox_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    approval_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    outbox_id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    approval_id = Column(GUID(), nullable=False, index=True)
     event_type = Column(String, nullable=False)
     payload = Column(JSON, nullable=False)
     delivery_status = Column(String, nullable=False, default="pending")
@@ -140,8 +160,8 @@ class SandboxExecutionModel(Base):
     __tablename__ = "sandbox_executions"
 
     sandbox_id = Column(String, primary_key=True)
-    request_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    approval_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    request_id = Column(GUID(), nullable=False, index=True)
+    approval_id = Column(GUID(), nullable=True, index=True)
     agent_id = Column(String, nullable=False, index=True)
     tool = Column(String, nullable=False)
     parameters = Column(JSON, nullable=False)
