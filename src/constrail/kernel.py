@@ -8,9 +8,10 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 
-from .admin_models import AuditRecordResponse, SandboxExecutionResponse
+from .admin_models import AuditRecordResponse, CapabilityManifestResponse, SandboxExecutionResponse
 from .approval import get_approval_service
 from .approval_models import ApprovalDecisionRequest, ApprovalRequestResponse
+from .capability_store import get_capability_store
 from .config import settings
 from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
 from .kernel_v2 import get_kernel
@@ -32,9 +33,6 @@ def ensure_runtime_ready():
 
 
 def authenticate_request(request: Request) -> str:
-    """Extract and validate API key from request headers.
-    MVP: simple header check where API key maps to agent_id.
-    """
     api_key = request.headers.get("X-API-Key")
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API key")
@@ -141,12 +139,7 @@ async def list_audit_records(
         if sandbox_id:
             query = query.filter(AuditRecordModel.sandbox_id == sandbox_id)
 
-        rows = (
-            query.order_by(AuditRecordModel.start_time.desc())
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
+        rows = query.order_by(AuditRecordModel.start_time.desc()).offset(offset).limit(limit).all()
         return [AuditRecordResponse.from_db(row) for row in rows]
     finally:
         db.close()
@@ -157,12 +150,7 @@ async def get_audit_record(request_id: UUID, auth_token: str = Depends(authentic
     ensure_runtime_ready()
     db = SessionLocal()
     try:
-        row = (
-            db.query(AuditRecordModel)
-            .filter(AuditRecordModel.request_id == request_id)
-            .order_by(AuditRecordModel.start_time.desc())
-            .first()
-        )
+        row = db.query(AuditRecordModel).filter(AuditRecordModel.request_id == request_id).order_by(AuditRecordModel.start_time.desc()).first()
         if row is None:
             raise HTTPException(status_code=404, detail="Audit record not found")
         return AuditRecordResponse.from_db(row)
@@ -196,12 +184,7 @@ async def list_sandbox_executions(
         if approval_id:
             query = query.filter(SandboxExecutionModel.approval_id == approval_id)
 
-        rows = (
-            query.order_by(SandboxExecutionModel.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
+        rows = query.order_by(SandboxExecutionModel.created_at.desc()).offset(offset).limit(limit).all()
         return [SandboxExecutionResponse.from_db(row) for row in rows]
     finally:
         db.close()
@@ -212,13 +195,21 @@ async def get_sandbox_execution(sandbox_id: str, auth_token: str = Depends(authe
     ensure_runtime_ready()
     db = SessionLocal()
     try:
-        row = (
-            db.query(SandboxExecutionModel)
-            .filter(SandboxExecutionModel.sandbox_id == sandbox_id)
-            .first()
-        )
+        row = db.query(SandboxExecutionModel).filter(SandboxExecutionModel.sandbox_id == sandbox_id).first()
         if row is None:
             raise HTTPException(status_code=404, detail="Sandbox execution not found")
         return SandboxExecutionResponse.from_db(row)
     finally:
         db.close()
+
+
+@app.get("/v1/admin/capabilities", response_model=list[CapabilityManifestResponse])
+async def list_capability_manifests(
+    agent_id: str | None = None,
+    active: bool | None = None,
+    auth_token: str = Depends(authenticate_request),
+):
+    ensure_runtime_ready()
+    store = get_capability_store()
+    rows = store.list_manifests(agent_id=agent_id, active=active)
+    return [CapabilityManifestResponse.from_db(row) for row in rows]

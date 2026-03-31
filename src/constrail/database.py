@@ -34,8 +34,6 @@ class RiskLevel(PythonEnum):
 
 
 class AuditRecordModel(Base):
-    """SQLAlchemy model for audit records."""
-
     __tablename__ = "audit_records"
 
     audit_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -59,8 +57,6 @@ class AuditRecordModel(Base):
 
 
 class ApprovalRequestModel(Base):
-    """Approval requests awaiting human review."""
-
     __tablename__ = "approval_requests"
 
     approval_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -80,12 +76,12 @@ class ApprovalRequestModel(Base):
 
 
 class CapabilityManifestModel(Base):
-    """Stored capability manifests."""
-
     __tablename__ = "capability_manifests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     agent_id = Column(String, nullable=False, index=True)
+    tenant_id = Column(String, nullable=True, index=True)
+    namespace = Column(String, nullable=True, index=True)
     version = Column(Integer, nullable=False, default=1)
     allowed_tools = Column(JSON, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -94,8 +90,6 @@ class CapabilityManifestModel(Base):
 
 
 class SandboxExecutionModel(Base):
-    """Sandbox execution records."""
-
     __tablename__ = "sandbox_executions"
 
     sandbox_id = Column(String, primary_key=True)
@@ -126,13 +120,11 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db():
-    """Create all tables (for development). In production, use Alembic migrations."""
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created (if not exists).")
 
 
 def get_db():
-    """Dependency for FastAPI to get database session."""
     db = SessionLocal()
     try:
         yield db

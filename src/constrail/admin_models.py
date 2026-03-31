@@ -89,3 +89,29 @@ class SandboxExecutionResponse(BaseModel):
             completed_at=row.completed_at,
             duration_ms=row.duration_ms,
         )
+
+
+class CapabilityManifestResponse(BaseModel):
+    id: int
+    agent_id: str
+    tenant_id: Optional[str] = None
+    namespace: Optional[str] = None
+    version: int
+    allowed_tools: list[dict[str, Any]]
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    active: bool
+
+    @classmethod
+    def from_db(cls, row):
+        return cls(
+            id=row.id,
+            agent_id=row.agent_id,
+            tenant_id=getattr(row, 'tenant_id', None),
+            namespace=getattr(row, 'namespace', None),
+            version=row.version,
+            allowed_tools=row.allowed_tools,
+            created_at=row.created_at,
+            expires_at=row.expires_at,
+            active=row.active,
+        )
