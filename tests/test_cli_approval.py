@@ -37,6 +37,19 @@ def test_approval_management_commands(monkeypatch):
     assert list_result.exit_code == 0
     assert 'Approval Requests' in list_result.output
 
+    summary_result = runner.invoke(cli, ['approval-summary', '--json'])
+    assert summary_result.exit_code == 0
+    assert '"total"' in summary_result.output
+    assert '"pending"' in summary_result.output
+
+    outbox_result = runner.invoke(cli, ['approval-outbox-summary', '--json'])
+    assert outbox_result.exit_code == 0
+    assert '"total"' in outbox_result.output
+
+    drain_result = runner.invoke(cli, ['approval-drain-outbox', '--limit', '5', '--json'])
+    assert drain_result.exit_code == 0
+    assert '"processed"' in drain_result.output
+
     list_json_result = runner.invoke(cli, ['approval-list', '--limit', '5', '--json'])
     assert list_json_result.exit_code == 0
     assert '"webhook_delivery_status"' in list_json_result.output

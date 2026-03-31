@@ -49,6 +49,10 @@ def auth_status_command(as_json: bool):
     payload = {
         'agent_key_configured': bool(settings.agent_api_key),
         'admin_key_configured': bool(settings.admin_api_key),
+        'bearer_tokens_enabled': bool(settings.secret_key),
+        'token_issuer': settings.token_issuer,
+        'token_audience': settings.token_audience,
+        'token_expire_minutes': settings.token_expire_minutes,
         'agent_role': auth.authenticate(settings.agent_api_key).role if settings.agent_api_key else None,
         'admin_role': auth.authenticate(settings.admin_api_key).role if settings.admin_api_key else None,
     }
@@ -61,6 +65,65 @@ def auth_status_command(as_json: bool):
     for key, value in payload.items():
         table.add_row(key, str(value))
     console.print(table)
+
+
+@cli.command("auth-mint-token", help="Mint a local bearer token for testing/operator workflows.")
+@click.option("--role", type=click.Choice(["agent", "admin"]), required=True, help="Token role.")
+@click.option("--subject", required=True, help="Token subject.")
+@click.option("--tenant", "tenant_id", default=None, help="Tenant identifier.")
+@click.option("--namespace", default=None, help="Namespace identifier.")
+@click.option("--agent-id", default=None, help="Optional agent ID claim.")
+@click.option("--expires-minutes", type=int, default=None, help="Override token lifetime.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def auth_mint_token_command(role: str, subject: str, tenant_id: str | None, namespace: str | None, agent_id: str | None, expires_minutes: int | None, as_json: bool):
+    auth = get_auth_service()
+    token = auth.mint_token(
+        role=role,
+        subject=subject,
+        tenant_id=tenant_id,
+        namespace=namespace,
+        agent_id=agent_id,
+        expires_minutes=expires_minutes,
+    )
+    payload = {
+        'token': token,
+        'role': role,
+        'subject': subject,
+        'tenant_id': tenant_id,
+        'namespace': namespace,
+        'agent_id': agent_id,
+        'expires_minutes': expires_minutes or settings.token_expire_minutes,
+        'issuer': settings.token_issuer,
+        'audience': settings.token_audience,
+    }
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    click.echo(token)
+
+
+@cli.command("auth-inspect-token", help="Inspect bearer token claims without verifying the signature.")
+@click.argument("token")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def auth_inspect_token_command(token: str, as_json: bool):
+    auth = get_auth_service()
+    payload = auth.inspect_token(token)
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
+
+
+@cli.command("auth-revoke-token", help="Revoke a bearer token by its signed value.")
+@click.argument("token")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def auth_revoke_token_command(token: str, as_json: bool):
+    auth = get_auth_service()
+    payload = auth.revoke_token(token)
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
 
 
 @cli.command("init-db", help="Initialize the Constrail database schema.")
@@ -108,7 +171,7 @@ def doctor_command(as_json: bool):
         "production_ready": sandbox_info["production_ready"],
         "warnings": sandbox_info["warnings"],
         "policy_dir": settings.policy_dir,
-        "auth_mode": 'dual-static-keys-alpha',
+        "auth_mode": 'static-keys-plus-bearer-alpha',
     }
 
     if as_json:
@@ -123,6 +186,20 @@ def doctor_command(as_json: bool):
 
     console.print(table)
     console.print("\n[bold]Raw config:[/bold]")
+    console.print_json(json.dumps(payload))
+
+
+@cli.command("sandbox-validate", help="Validate whether current sandbox config is production-ready enough for stricter use.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def sandbox_validate_command(as_json: bool):
+    payload = sandbox_health()
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    if payload['production_ready']:
+        console.print('[green]Sandbox posture looks production-ready.[/green]')
+    else:
+        console.print('[yellow]Sandbox posture still has warnings.[/yellow]')
     console.print_json(json.dumps(payload))
 
 
@@ -318,6 +395,60 @@ def approval_list_command(limit: int, approved: str | None, agent_id: str | None
     for row in payload:
         table.add_row(row["approval_id"], row["tool"], row["agent_id"], str(row["approved"]), row["webhook_delivery_status"], str(row["webhook_delivery_attempts"]))
     console.print(table)
+
+
+@cli.command("approval-summary", help="Show aggregate approval workflow counts.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def approval_summary_command(as_json: bool):
+    init_db()
+    service = get_approval_service()
+    rows = service.list_requests()
+    summary = {
+        'total': len(rows),
+        'pending': sum(1 for row in rows if row.approved is None),
+        'approved': sum(1 for row in rows if row.approved is True),
+        'denied': sum(1 for row in rows if row.approved is False),
+        'delivered': sum(1 for row in rows if getattr(row, 'webhook_delivery_status', None) == 'delivered'),
+        'failed': sum(1 for row in rows if getattr(row, 'webhook_delivery_status', None) == 'failed'),
+        'exhausted': sum(1 for row in rows if getattr(row, 'webhook_delivery_status', None) == 'exhausted'),
+    }
+    if as_json:
+        click.echo(json.dumps(summary, indent=2))
+        return
+    table = Table(title='Approval Summary')
+    table.add_column('Metric')
+    table.add_column('Count')
+    for key, value in summary.items():
+        table.add_row(key, str(value))
+    console.print(table)
+
+
+@cli.command("approval-outbox-summary", help="Show approval webhook outbox delivery counts.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def approval_outbox_summary_command(as_json: bool):
+    init_db()
+    payload = get_approval_service().outbox_summary()
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    table = Table(title='Approval Outbox Summary')
+    table.add_column('Metric')
+    table.add_column('Count')
+    for key, value in payload.items():
+        table.add_row(key, str(value))
+    console.print(table)
+
+
+@cli.command("approval-drain-outbox", help="Attempt delivery of pending/failed webhook outbox items.")
+@click.option("--limit", default=20, type=int, help="Maximum number of outbox items to process.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def approval_drain_outbox_command(limit: int, as_json: bool):
+    init_db()
+    payload = get_approval_service().drain_outbox(limit=limit)
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
 
 
 @cli.command("approval-show", help="Show a single approval request.")

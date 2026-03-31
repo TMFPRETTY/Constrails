@@ -80,6 +80,31 @@ class ApprovalRequestModel(Base):
     webhook_last_error = Column(Text, nullable=True)
 
 
+class ApprovalWebhookOutboxModel(Base):
+    __tablename__ = "approval_webhook_outbox"
+
+    outbox_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    approval_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    event_type = Column(String, nullable=False)
+    payload = Column(JSON, nullable=False)
+    delivery_status = Column(String, nullable=False, default="pending")
+    attempt_count = Column(Integer, nullable=False, default=0)
+    last_attempt_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    delivered_at = Column(DateTime, nullable=True)
+
+
+class RevokedTokenModel(Base):
+    __tablename__ = "revoked_tokens"
+
+    token_id = Column(String, primary_key=True)
+    subject = Column(String, nullable=False, index=True)
+    role = Column(String, nullable=False)
+    revoked_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+
+
 class CapabilityManifestModel(Base):
     __tablename__ = "capability_manifests"
 

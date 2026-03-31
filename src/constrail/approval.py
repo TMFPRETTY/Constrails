@@ -11,7 +11,7 @@ from uuid import UUID
 from urllib.request import Request, urlopen
 
 from .config import settings
-from .database import ApprovalRequestModel, SessionLocal
+from .database import ApprovalRequestModel, ApprovalWebhookOutboxModel, SessionLocal
 
 
 class ApprovalService:
@@ -51,10 +51,9 @@ class ApprovalService:
             db.add(approval)
             db.commit()
             db.refresh(approval)
-            self._emit_webhook(
-                approval.approval_id,
-                self._build_event_payload(approval, 'approval.created'),
-            )
+            payload = self._build_event_payload(approval, 'approval.created')
+            self._enqueue_webhook(approval.approval_id, 'approval.created', payload)
+            self._emit_webhook(approval.approval_id, payload)
             return self.get_request(approval.approval_id)
         finally:
             db.close()
@@ -112,13 +111,10 @@ class ApprovalService:
             approval.review_comment = comment
             db.commit()
             db.refresh(approval)
-            self._emit_webhook(
-                approval.approval_id,
-                self._build_event_payload(
-                    approval,
-                    'approval.approved' if approved else 'approval.denied',
-                ),
-            )
+            event = 'approval.approved' if approved else 'approval.denied'
+            payload = self._build_event_payload(approval, event)
+            self._enqueue_webhook(approval.approval_id, event, payload)
+            self._emit_webhook(approval.approval_id, payload)
             return self.get_request(approval.approval_id)
         finally:
             db.close()
@@ -127,14 +123,64 @@ class ApprovalService:
         approval = self.get_request(approval_id)
         if approval is None:
             return None
-        self._emit_webhook(approval.approval_id, self._build_retry_payload(approval), allow_exhausted=True)
+        payload = self._build_retry_payload(approval)
+        self._enqueue_webhook(approval.approval_id, 'approval.retry', payload)
+        self._emit_webhook(approval.approval_id, payload, allow_exhausted=True)
         return self.get_request(approval.approval_id)
+
+    def drain_outbox(self, limit: int = 20) -> dict[str, int]:
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(ApprovalWebhookOutboxModel)
+                .filter(ApprovalWebhookOutboxModel.delivery_status.in_(['pending', 'failed']))
+                .order_by(ApprovalWebhookOutboxModel.created_at.asc())
+                .limit(limit)
+                .all()
+            )
+            processed = 0
+            delivered = 0
+            for row in rows:
+                processed += 1
+                ok = self._deliver_outbox_item(row.outbox_id)
+                if ok:
+                    delivered += 1
+            return {'processed': processed, 'delivered': delivered}
+        finally:
+            db.close()
+
+    def outbox_summary(self) -> dict[str, int]:
+        db = SessionLocal()
+        try:
+            rows = db.query(ApprovalWebhookOutboxModel).all()
+            return {
+                'total': len(rows),
+                'pending': sum(1 for row in rows if row.delivery_status == 'pending'),
+                'failed': sum(1 for row in rows if row.delivery_status == 'failed'),
+                'delivered': sum(1 for row in rows if row.delivery_status == 'delivered'),
+            }
+        finally:
+            db.close()
 
     def get_approver_id(self, approval_id: UUID) -> Optional[str]:
         approval = self.get_request(approval_id)
         if approval is None:
             return None
         return approval.approver_id
+
+    def _enqueue_webhook(self, approval_id: UUID, event_type: str, payload: dict):
+        db = SessionLocal()
+        try:
+            row = ApprovalWebhookOutboxModel(
+                approval_id=approval_id,
+                event_type=event_type,
+                payload=payload,
+                delivery_status='pending',
+            )
+            db.add(row)
+            db.commit()
+        finally:
+            db.close()
 
     def _build_event_payload(self, approval: ApprovalRequestModel, event: str) -> dict:
         payload = {
@@ -194,6 +240,37 @@ class ApprovalService:
         finally:
             db.close()
 
+    def _deliver_outbox_item(self, outbox_id: UUID) -> bool:
+        db = SessionLocal()
+        try:
+            row = db.query(ApprovalWebhookOutboxModel).filter(ApprovalWebhookOutboxModel.outbox_id == outbox_id).first()
+            if row is None:
+                return False
+            try:
+                req = Request(
+                    settings.approval_webhook_url,
+                    data=json.dumps(row.payload).encode('utf-8'),
+                    headers={'Content-Type': 'application/json'},
+                    method='POST',
+                )
+                with urlopen(req, timeout=5):
+                    row.delivery_status = 'delivered'
+                    row.attempt_count += 1
+                    row.last_attempt_at = datetime.utcnow()
+                    row.last_error = None
+                    row.delivered_at = datetime.utcnow()
+                    db.commit()
+                    return True
+            except Exception as exc:
+                row.delivery_status = 'failed'
+                row.attempt_count += 1
+                row.last_attempt_at = datetime.utcnow()
+                row.last_error = str(exc)
+                db.commit()
+                return False
+        finally:
+            db.close()
+
     def _emit_webhook(self, approval_id: UUID, payload: dict, allow_exhausted: bool = False):
         if not settings.approval_webhook_url:
             return
@@ -202,7 +279,6 @@ class ApprovalService:
             return
         attempts = approval.webhook_delivery_attempts or 0
         if attempts >= settings.approval_webhook_max_attempts and not allow_exhausted:
-            approval.webhook_delivery_status = 'exhausted'
             db = SessionLocal()
             try:
                 row = (
