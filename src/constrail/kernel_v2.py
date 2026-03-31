@@ -41,6 +41,7 @@ class ConstrailKernel:
         self.approval_service = get_approval_service()
         self.sandbox_execution_service = get_sandbox_execution_service()
         self.tool_broker = None
+        self._rate_limit_state: dict[str, list[float]] = {}
 
     async def process(self, request: ActionRequest) -> ActionResponse:
         request_id = str(uuid.uuid4())
@@ -70,6 +71,31 @@ class ConstrailKernel:
         final_decision = self._determine_final_decision(
             request, policy_evaluation.decision, risk_assessment.level
         )
+        if self._rate_limit_exceeded(request.agent.agent_id):
+            final_decision = Decision.QUARANTINE
+            duration_ms = int((time.time() - start_time) * 1000)
+            await self._log_audit(
+                request,
+                request_id,
+                risk_assessment,
+                policy_evaluation,
+                final_decision,
+                None,
+                'Rate limit exceeded',
+                None,
+                duration_ms,
+                approval_id=None,
+                approver_id=None,
+                replayed_from_approval_id=None,
+            )
+            return ActionResponse(
+                request_id=uuid.UUID(request_id),
+                decision=Decision.QUARANTINE,
+                result=None,
+                error='Rate limit exceeded',
+                approval_id=None,
+                sandbox_id=None,
+            )
 
         execution_result = None
         error = None
@@ -152,6 +178,9 @@ class ConstrailKernel:
             replayed_from_approval_id=replayed_from_approval_id,
         )
 
+        if final_decision == Decision.QUARANTINE and error is None:
+            error = 'Rate limit exceeded'
+
         return ActionResponse(
             request_id=uuid.UUID(request_id),
             decision=final_decision,
@@ -160,6 +189,16 @@ class ConstrailKernel:
             approval_id=approval_id,
             sandbox_id=sandbox_id,
         )
+
+    def _rate_limit_exceeded(self, agent_id: str) -> bool:
+        if not settings.anomaly_detection_enabled:
+            return False
+        now = time.time()
+        window_start = now - settings.rate_limit_window_seconds
+        timestamps = [ts for ts in self._rate_limit_state.get(agent_id, []) if ts >= window_start]
+        timestamps.append(now)
+        self._rate_limit_state[agent_id] = timestamps
+        return len(timestamps) > settings.anomaly_burst_threshold
 
     def _determine_final_decision(
         self,

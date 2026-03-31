@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     anomaly_detection_enabled: bool = True
     anomaly_burst_threshold: int = 100
     anomaly_new_tool_alert: bool = True
+    rate_limit_window_seconds: int = 60
     exfiltration_lookback_limit: int = 20
     exfiltration_read_then_network_enabled: bool = True
 

@@ -2,7 +2,7 @@
 
 ![Alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-70%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-79%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -25,19 +25,19 @@ Available today:
 - canonical kernel path (`kernel_v2.py`) behind FastAPI (`kernel.py`)
 - capability-based allow/deny checks with tenant/namespace-aware manifest lookup
 - capability manifest persistence, versioning, activation/deactivation, mutation, and CLI lifecycle commands
-- heuristic risk scoring with bootstrap risk profiles
-- policy evaluation with built-in fallback when OPA is unavailable
+- heuristic risk scoring with bootstrap risk profiles, cross-request exfiltration chain heuristics, and basic burst-rate controls
+- policy evaluation with explicit degraded/strict availability modes when OPA is unavailable
 - expanded starter OPA policy bundle plus OPA-response contract tests and local/CI compose smoke coverage
 - tool broker with filesystem, HTTP, and exec adapters
 - approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, attempt exhaustion tracking, an approval webhook outbox model, optional in-process auto-drain controls, and a bounded worker-loop command
-- local SQLite-backed audit, approval, sandbox execution, token revocation, and capability persistence for development
+- local SQLite-backed audit, approval, sandbox execution, token revocation, and capability persistence for development, with cross-dialect GUID handling for safer SQLite portability
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
 - Docker sandbox path hardened with clearer production-posture reporting and local compose smoke validation
 - a first-class `constrail` CLI entrypoint
 - read-only admin inspection endpoints for audit, sandbox, and capability history
 - filtered admin queries and scoped admin semantics for operational workflows
-- basic admin/agent auth separation with legacy static keys plus a stricter bearer-token auth path with issuer/audience validation, token revocation, and a basic secret-rotation bridge
+- basic admin/agent auth separation with legacy static keys plus a stricter bearer-token auth path with issuer/audience validation, token revocation, key registry visibility, and a basic secret-rotation bridge
 - deployment examples for Docker Compose + OPA sidecar flow, including a serialized local smoke script
 - automated test coverage for the current MVP spine
 
@@ -75,13 +75,13 @@ Core components in this repository:
 - `src/constrail/tool_broker/broker.py` - tool dispatch and execution modes
 - `src/constrail/capability/manager.py` - capability manifest loading and checks
 - `src/constrail/capability_store.py` - capability manifest persistence and lifecycle helpers
-- `src/constrail/risk/risk_engine.py` - heuristic risk scoring
+- `src/constrail/risk/risk_engine.py` - heuristic risk scoring, exfiltration-chain detection, and burst anomaly hooks
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
 - `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, retry, exhaustion, outbox helpers, optional auto-drain hooks, and a worker-loop entrypoint
-- `src/constrail/auth.py` - alpha auth principal, static-key auth, bearer-token helpers, revocation support, and basic secret-rotation bridging
+- `src/constrail/auth.py` - alpha auth principal, static-key auth, bearer-token helpers, revocation support, key registry visibility, and secret-rotation bridging
 - `src/constrail/sandbox.py` - sandbox executor abstraction, posture reporting, and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
-- `src/constrail/database.py` - development database models and session management
+- `src/constrail/database.py` - development database models, cross-dialect GUID persistence, and session management
 - `src/constrail/cli.py` - CLI entrypoint for local operations
 
 ## Repository Layout
@@ -177,7 +177,7 @@ Current development defaults:
 - sandbox mode: `development`
 - filesystem adapter base path: current repository working directory
 - auth mode: legacy static keys plus a stricter alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
-- approval webhooks: optional, with delivery tracking, retry support, outbox state, auto-drain controls, worker-loop support, and attempt limits
+- approval webhooks: optional, with delivery tracking, retry support, outbox state, auto-drain controls, worker-loop support, attempt limits, and HMAC signing
 
 These defaults are intentionally optimized for local bring-up, not for final production deployment.
 
@@ -259,6 +259,7 @@ constrail doctor --json
 constrail sandbox-validate --json
 constrail auth-status
 constrail auth-status --json
+constrail auth-keys --json
 ```
 
 Agent and admin requests can still use `X-API-Key`, and alpha bearer tokens are also supported via `Authorization: Bearer <token>`.
@@ -351,6 +352,8 @@ These endpoints expose read-only visibility into:
 - recent audit records
 - replay provenance
 - approval linkage
+- auth correlation metadata
+- audit hash-chain fields
 - sandbox execution history
 - stored capability manifest records
 
@@ -380,6 +383,8 @@ Current test coverage includes:
 - exec adapter sandbox behavior
 - sandbox executor selection, posture reporting, and replay flow
 - audit and sandbox provenance linkage
+- audit auth-correlation metadata and hash-chain linkage
+- exfiltration-chain heuristics and basic burst-rate limiting
 - admin inspection endpoints
 - CLI command surface and JSON output
 - policy engine fallback, explanation behavior, richer OPA-response contract coverage, and compose-based live OPA smoke coverage
