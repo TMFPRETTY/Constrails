@@ -18,7 +18,7 @@ from .approval import get_approval_service
 from .config import settings
 from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
 from .kernel_v2 import ConstrailKernel
-from .sandbox import get_sandbox_executor, reset_sandbox_executor
+from .sandbox import get_sandbox_executor, reset_sandbox_executor, sandbox_health
 
 console = Console()
 
@@ -63,6 +63,7 @@ def serve_command(host: str | None, port: int | None, reload: bool):
 def doctor_command(as_json: bool):
     reset_sandbox_executor()
     executor = get_sandbox_executor()
+    sandbox_info = sandbox_health()
     payload = {
         "api_host": settings.api_host,
         "api_port": settings.api_port,
@@ -70,7 +71,11 @@ def doctor_command(as_json: bool):
         "policy_engine": settings.policy_engine,
         "opa_url": settings.opa_url,
         "sandbox_type": settings.sandbox_type,
+        "sandbox_image": settings.sandbox_image,
         "sandbox_executor": executor.__class__.__name__ if executor else None,
+        "docker_cli_found": sandbox_info["docker_cli_found"],
+        "docker_path": sandbox_info["docker_path"],
+        "docker_socket": sandbox_info["docker_socket"],
         "policy_dir": settings.policy_dir,
     }
 

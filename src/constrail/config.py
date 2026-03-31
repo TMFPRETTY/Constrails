@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # Sandbox
     sandbox_type: str = "dev"  # dev, docker, gvisor, none
     docker_socket: Optional[str] = None  # defaults to /var/run/docker.sock
+    sandbox_image: str = "python:3.11-alpine"
     sandbox_timeout_seconds: int = 300
     sandbox_memory_limit_mb: int = 512
     sandbox_cpu_shares: int = 512

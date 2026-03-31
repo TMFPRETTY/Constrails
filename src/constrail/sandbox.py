@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import subprocess
 import uuid
 from dataclasses import dataclass
@@ -90,8 +91,8 @@ class DevSandboxExecutor(SandboxExecutor):
 
 
 class DockerSandboxExecutor(SandboxExecutor):
-    def __init__(self, image: str = 'python:3.11-alpine'):
-        self.image = image
+    def __init__(self, image: Optional[str] = None):
+        self.image = image or settings.sandbox_image
 
     async def execute(
         self,
@@ -183,6 +184,19 @@ _default_sandbox_executor: Optional[SandboxExecutor] = None
 def reset_sandbox_executor():
     global _default_sandbox_executor
     _default_sandbox_executor = None
+
+
+def sandbox_health() -> dict[str, Any]:
+    sandbox_type = settings.sandbox_type
+    docker_path = shutil.which('docker')
+    docker_available = docker_path is not None
+    return {
+        'sandbox_type': sandbox_type,
+        'sandbox_image': settings.sandbox_image,
+        'docker_cli_found': docker_available,
+        'docker_path': docker_path,
+        'docker_socket': settings.docker_socket or os.environ.get('DOCKER_HOST'),
+    }
 
 
 def get_sandbox_executor() -> Optional[SandboxExecutor]:
