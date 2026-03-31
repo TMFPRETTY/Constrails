@@ -1,5 +1,7 @@
+import pytest
+
 from constrail.config import settings
-from constrail.sandbox import DevSandboxExecutor, DockerSandboxExecutor, get_sandbox_executor, reset_sandbox_executor, sandbox_health
+from constrail.sandbox import DevSandboxExecutor, DockerSandboxExecutor, SandboxEnforcementError, enforce_sandbox_posture, get_sandbox_executor, reset_sandbox_executor, sandbox_health
 
 
 class TempSetting:
@@ -64,3 +66,29 @@ def test_sandbox_health_reports_posture_flags():
         assert health['checks']['memory_limit_configured'] is False
         assert health['checks']['timeout_configured'] is False
         assert len(health['warnings']) >= 1
+
+
+def test_strict_sandbox_mode_blocks_unready_posture():
+    with (
+        TempSetting('sandbox_strict_mode', True),
+        TempSetting('sandbox_type', 'dev'),
+    ):
+        with pytest.raises(SandboxEnforcementError, match='Strict sandbox mode blocked'):
+            enforce_sandbox_posture('sandboxed exec')
+
+
+def test_strict_sandbox_mode_allows_ready_posture():
+    with (
+        TempSetting('sandbox_strict_mode', True),
+        TempSetting('sandbox_type', 'docker'),
+        TempSetting('sandbox_require_image_digest', False),
+        TempSetting('sandbox_workspace_mount_readonly', True),
+        TempSetting('sandbox_allow_host_network', False),
+        TempSetting('sandbox_tmpfs_size_mb', 64),
+        TempSetting('sandbox_memory_limit_mb', 512),
+        TempSetting('sandbox_timeout_seconds', 300),
+        TempSetting('docker_socket', 'unix:///var/run/docker.sock'),
+    ):
+        health = sandbox_health()
+        if health['checks']['docker_cli_available']:
+            enforce_sandbox_posture('sandboxed exec')

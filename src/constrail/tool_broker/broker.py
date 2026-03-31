@@ -9,7 +9,7 @@ from typing import Dict, Optional, Type
 
 from ..adapters.base import ToolAdapter
 from ..models import AgentIdentity, Decision, ToolCall, ToolResult
-from ..sandbox import get_sandbox_executor
+from ..sandbox import SandboxEnforcementError, enforce_sandbox_posture, get_sandbox_executor
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,19 @@ class ToolBroker:
             return ToolResult(success=False, error=f"Tool execution failed: {e}", data=None, metadata={"decision": "execution_error"})
 
     async def _execute_sandbox(self, call: ToolCall, context: ExecutionContext) -> ToolResult:
+        try:
+            enforce_sandbox_posture(operation=f"sandboxed tool '{call.tool}'")
+        except SandboxEnforcementError as exc:
+            return ToolResult(
+                success=False,
+                error=str(exc),
+                data={"sandbox_strict_mode": True, "sandbox_required": True},
+                metadata={
+                    "decision": "sandbox_blocked",
+                    "request_id": context.request_id,
+                    "agent_id": context.agent.agent_id,
+                },
+            )
         result = await self._execute_direct(call, context)
         result.metadata["execution_mode"] = "sandbox"
         return result

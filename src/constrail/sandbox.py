@@ -35,6 +35,10 @@ class SandboxExecutionResult:
         }
 
 
+class SandboxEnforcementError(RuntimeError):
+    pass
+
+
 class SandboxExecutor:
     async def execute(
         self,
@@ -251,6 +255,18 @@ def sandbox_health() -> dict[str, Any]:
         'production_ready': production_ready,
         'warnings': warnings,
     }
+
+
+def enforce_sandbox_posture(operation: str = 'sandboxed execution') -> None:
+    if not settings.sandbox_strict_mode:
+        return
+    health = sandbox_health()
+    if health['production_ready']:
+        return
+    warnings = '; '.join(health['warnings']) if health['warnings'] else 'sandbox posture not production-ready'
+    raise SandboxEnforcementError(
+        f"Strict sandbox mode blocked {operation}: {warnings}"
+    )
 
 
 def get_sandbox_executor() -> Optional[SandboxExecutor]:
