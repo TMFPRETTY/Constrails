@@ -118,14 +118,32 @@ async def replay_approved_request(
 @app.get("/v1/admin/audit", response_model=list[AuditRecordResponse])
 async def list_audit_records(
     limit: int = 20,
+    offset: int = 0,
+    agent_id: str | None = None,
+    tool: str | None = None,
+    decision: str | None = None,
+    approval_id: UUID | None = None,
+    sandbox_id: str | None = None,
     auth_token: str = Depends(authenticate_request),
 ):
     ensure_runtime_ready()
     db = SessionLocal()
     try:
+        query = db.query(AuditRecordModel)
+        if agent_id:
+            query = query.filter(AuditRecordModel.agent_id == agent_id)
+        if tool:
+            query = query.filter(AuditRecordModel.tool == tool)
+        if decision:
+            query = query.filter(AuditRecordModel.final_decision == decision)
+        if approval_id:
+            query = query.filter(AuditRecordModel.approval_id == approval_id)
+        if sandbox_id:
+            query = query.filter(AuditRecordModel.sandbox_id == sandbox_id)
+
         rows = (
-            db.query(AuditRecordModel)
-            .order_by(AuditRecordModel.start_time.desc())
+            query.order_by(AuditRecordModel.start_time.desc())
+            .offset(offset)
             .limit(limit)
             .all()
         )
@@ -155,14 +173,32 @@ async def get_audit_record(request_id: UUID, auth_token: str = Depends(authentic
 @app.get("/v1/admin/sandbox", response_model=list[SandboxExecutionResponse])
 async def list_sandbox_executions(
     limit: int = 20,
+    offset: int = 0,
+    agent_id: str | None = None,
+    tool: str | None = None,
+    executor: str | None = None,
+    status: str | None = None,
+    approval_id: UUID | None = None,
     auth_token: str = Depends(authenticate_request),
 ):
     ensure_runtime_ready()
     db = SessionLocal()
     try:
+        query = db.query(SandboxExecutionModel)
+        if agent_id:
+            query = query.filter(SandboxExecutionModel.agent_id == agent_id)
+        if tool:
+            query = query.filter(SandboxExecutionModel.tool == tool)
+        if executor:
+            query = query.filter(SandboxExecutionModel.executor == executor)
+        if status:
+            query = query.filter(SandboxExecutionModel.status == status)
+        if approval_id:
+            query = query.filter(SandboxExecutionModel.approval_id == approval_id)
+
         rows = (
-            db.query(SandboxExecutionModel)
-            .order_by(SandboxExecutionModel.created_at.desc())
+            query.order_by(SandboxExecutionModel.created_at.desc())
+            .offset(offset)
             .limit(limit)
             .all()
         )

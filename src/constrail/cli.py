@@ -45,39 +45,40 @@ def serve_command(host: str | None, port: int | None, reload: bool):
 
 
 @cli.command("doctor", help="Show current runtime configuration and dependency posture.")
-def doctor_command():
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def doctor_command(as_json: bool):
     reset_sandbox_executor()
     executor = get_sandbox_executor()
-
-    table = Table(title="Constrail Doctor")
-    table.add_column("Setting", style="cyan")
-    table.add_column("Value", style="green")
-
-    table.add_row("API host", settings.api_host)
-    table.add_row("API port", str(settings.api_port))
-    table.add_row("Database URL", settings.database_url)
-    table.add_row("Policy engine", settings.policy_engine)
-    table.add_row("OPA URL", settings.opa_url)
-    table.add_row("Sandbox type", settings.sandbox_type)
-    table.add_row("Sandbox executor", executor.__class__.__name__ if executor else "None")
-    table.add_row("Policy dir", settings.policy_dir)
-
-    console.print(table)
-    console.print("\n[bold]Raw config:[/bold]")
-    console.print_json(json.dumps({
+    payload = {
         "api_host": settings.api_host,
         "api_port": settings.api_port,
         "database_url": settings.database_url,
         "policy_engine": settings.policy_engine,
         "opa_url": settings.opa_url,
         "sandbox_type": settings.sandbox_type,
+        "sandbox_executor": executor.__class__.__name__ if executor else None,
         "policy_dir": settings.policy_dir,
-    }))
+    }
+
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    table = Table(title="Constrail Doctor")
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value", style="green")
+    for key, value in payload.items():
+        table.add_row(key.replace("_", " ").title(), str(value))
+
+    console.print(table)
+    console.print("\n[bold]Raw config:[/bold]")
+    console.print_json(json.dumps(payload))
 
 
 @cli.command("audit-list", help="List recent audit records.")
 @click.option("--limit", default=10, type=int, help="Maximum number of rows to show.")
-def audit_list_command(limit: int):
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def audit_list_command(limit: int, as_json: bool):
     init_db()
     db = SessionLocal()
     try:
@@ -87,19 +88,33 @@ def audit_list_command(limit: int):
             .limit(limit)
             .all()
         )
+        payload = [
+            {
+                "request_id": str(row.request_id),
+                "tool": row.tool,
+                "decision": row.final_decision.value if hasattr(row.final_decision, 'value') else str(row.final_decision),
+                "agent_id": row.agent_id,
+                "sandbox_id": row.sandbox_id,
+            }
+            for row in rows
+        ]
+        if as_json:
+            click.echo(json.dumps(payload, indent=2))
+            return
+
         table = Table(title="Audit Records")
         table.add_column("Request ID")
         table.add_column("Tool")
         table.add_column("Decision")
         table.add_column("Agent")
         table.add_column("Sandbox")
-        for row in rows:
+        for row in payload:
             table.add_row(
-                str(row.request_id),
-                row.tool,
-                row.final_decision.value if hasattr(row.final_decision, 'value') else str(row.final_decision),
-                row.agent_id,
-                row.sandbox_id or "-",
+                row["request_id"],
+                row["tool"],
+                row["decision"],
+                row["agent_id"],
+                row["sandbox_id"] or "-",
             )
         console.print(table)
     finally:
@@ -108,7 +123,8 @@ def audit_list_command(limit: int):
 
 @cli.command("sandbox-list", help="List recent sandbox executions.")
 @click.option("--limit", default=10, type=int, help="Maximum number of rows to show.")
-def sandbox_list_command(limit: int):
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def sandbox_list_command(limit: int, as_json: bool):
     init_db()
     db = SessionLocal()
     try:
@@ -118,19 +134,33 @@ def sandbox_list_command(limit: int):
             .limit(limit)
             .all()
         )
+        payload = [
+            {
+                "sandbox_id": row.sandbox_id,
+                "executor": row.executor,
+                "status": row.status,
+                "tool": row.tool,
+                "approval_id": str(row.approval_id) if row.approval_id else None,
+            }
+            for row in rows
+        ]
+        if as_json:
+            click.echo(json.dumps(payload, indent=2))
+            return
+
         table = Table(title="Sandbox Executions")
         table.add_column("Sandbox ID")
         table.add_column("Executor")
         table.add_column("Status")
         table.add_column("Tool")
         table.add_column("Approval ID")
-        for row in rows:
+        for row in payload:
             table.add_row(
-                row.sandbox_id,
-                row.executor or "-",
-                row.status,
-                row.tool,
-                str(row.approval_id) if row.approval_id else "-",
+                row["sandbox_id"],
+                row["executor"] or "-",
+                row["status"],
+                row["tool"],
+                row["approval_id"] or "-",
             )
         console.print(table)
     finally:
@@ -139,23 +169,38 @@ def sandbox_list_command(limit: int):
 
 @cli.command("approval-list", help="List recent approval requests.")
 @click.option("--limit", default=10, type=int, help="Maximum number of rows to show.")
-def approval_list_command(limit: int):
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def approval_list_command(limit: int, as_json: bool):
     init_db()
     service = get_approval_service()
     rows = service.list_requests()[:limit]
+    payload = [
+        {
+            "approval_id": str(row.approval_id),
+            "tool": row.tool,
+            "agent_id": row.agent_id,
+            "approved": row.approved,
+            "approver_id": row.approver_id,
+        }
+        for row in rows
+    ]
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+
     table = Table(title="Approval Requests")
     table.add_column("Approval ID")
     table.add_column("Tool")
     table.add_column("Agent")
     table.add_column("Approved")
     table.add_column("Approver")
-    for row in rows:
+    for row in payload:
         table.add_row(
-            str(row.approval_id),
-            row.tool,
-            row.agent_id,
-            str(row.approved),
-            row.approver_id or "-",
+            row["approval_id"],
+            row["tool"],
+            row["agent_id"],
+            str(row["approved"]),
+            row["approver_id"] or "-",
         )
     console.print(table)
 

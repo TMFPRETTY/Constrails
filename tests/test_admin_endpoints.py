@@ -31,7 +31,7 @@ def test_admin_audit_and_sandbox_endpoints():
     request_id = replay_body['request_id']
     sandbox_id = replay_body['sandbox_id']
 
-    audit_list = client.get('/v1/admin/audit?limit=5', headers=HEADERS)
+    audit_list = client.get('/v1/admin/audit?limit=5&agent_id=dev-agent&tool=exec', headers=HEADERS)
     assert audit_list.status_code == 200
     assert any(row['request_id'] == request_id for row in audit_list.json())
 
@@ -39,7 +39,7 @@ def test_admin_audit_and_sandbox_endpoints():
     assert audit_get.status_code == 200
     assert audit_get.json()['sandbox_id'] == sandbox_id
 
-    sandbox_list = client.get('/v1/admin/sandbox?limit=5', headers=HEADERS)
+    sandbox_list = client.get('/v1/admin/sandbox?limit=5&agent_id=dev-agent&executor=dev&status=completed', headers=HEADERS)
     assert sandbox_list.status_code == 200
     assert any(row['sandbox_id'] == sandbox_id for row in sandbox_list.json())
 
