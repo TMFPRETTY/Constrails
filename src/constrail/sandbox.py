@@ -46,13 +46,6 @@ class SandboxExecutor:
 
 
 class DevSandboxExecutor(SandboxExecutor):
-    """Development sandbox executor.
-
-    This is not a production isolation boundary. It exists to preserve the
-    sandbox-first control flow while local development is still bringing up
-    real containerized execution.
-    """
-
     async def execute(
         self,
         command: str,
@@ -97,11 +90,6 @@ class DevSandboxExecutor(SandboxExecutor):
 
 
 class DockerSandboxExecutor(SandboxExecutor):
-    """Docker-backed sandbox executor.
-
-    This is opt-in and requires a reachable Docker daemon.
-    """
-
     def __init__(self, image: str = 'python:3.11-alpine'):
         self.image = image
 
@@ -125,13 +113,20 @@ class DockerSandboxExecutor(SandboxExecutor):
         if docker_host:
             prefix = ['env', f'DOCKER_HOST={docker_host}']
 
+        volume_args = []
+        host_workspace = os.getcwd()
+        if os.path.isdir(host_workspace):
+            volume_args = ['-v', f'{host_workspace}:/workspace:ro']
+
         cmd = prefix + [
             'docker', 'run', '--rm', '--name', sandbox_id,
             '--network', 'none',
             '--memory', f'{settings.sandbox_memory_limit_mb}m',
             '--cpus', '0.5',
             '--read-only',
+            '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
             '-w', workdir,
+            *volume_args,
             *env_args,
             self.image,
             'sh', '-lc', command,
@@ -149,11 +144,14 @@ class DockerSandboxExecutor(SandboxExecutor):
                 process.communicate(),
                 timeout=docker_timeout,
             )
+            stderr_text = stderr.decode('utf-8', errors='replace')
+            if "Unable to find image" in stderr_text and "Status: Downloaded newer image" in stderr_text:
+                stderr_text = ""
             return SandboxExecutionResult(
                 sandbox_id=sandbox_id,
                 exit_code=process.returncode,
                 stdout=stdout.decode('utf-8', errors='replace'),
-                stderr=stderr.decode('utf-8', errors='replace'),
+                stderr=stderr_text,
                 timeout=False,
                 executor='docker',
             )

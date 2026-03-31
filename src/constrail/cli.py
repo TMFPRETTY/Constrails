@@ -12,6 +12,7 @@ import uvicorn
 from rich.console import Console
 from rich.table import Table
 
+from .approval import get_approval_service
 from .config import settings
 from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
 from .sandbox import get_sandbox_executor, reset_sandbox_executor
@@ -134,6 +135,75 @@ def sandbox_list_command(limit: int):
         console.print(table)
     finally:
         db.close()
+
+
+@cli.command("approval-list", help="List recent approval requests.")
+@click.option("--limit", default=10, type=int, help="Maximum number of rows to show.")
+def approval_list_command(limit: int):
+    init_db()
+    service = get_approval_service()
+    rows = service.list_requests()[:limit]
+    table = Table(title="Approval Requests")
+    table.add_column("Approval ID")
+    table.add_column("Tool")
+    table.add_column("Agent")
+    table.add_column("Approved")
+    table.add_column("Approver")
+    for row in rows:
+        table.add_row(
+            str(row.approval_id),
+            row.tool,
+            row.agent_id,
+            str(row.approved),
+            row.approver_id or "-",
+        )
+    console.print(table)
+
+
+@cli.command("approval-show", help="Show a single approval request.")
+@click.argument("approval_id")
+def approval_show_command(approval_id: str):
+    init_db()
+    service = get_approval_service()
+    row = service.get_request(UUID(approval_id))
+    if row is None:
+        raise click.ClickException("Approval request not found")
+    console.print_json(json.dumps({
+        "approval_id": str(row.approval_id),
+        "request_id": str(row.request_id),
+        "agent_id": row.agent_id,
+        "tool": row.tool,
+        "parameters": row.parameters,
+        "approved": row.approved,
+        "approver_id": row.approver_id,
+        "review_comment": row.review_comment,
+    }))
+
+
+@cli.command("approval-approve", help="Approve an approval request.")
+@click.argument("approval_id")
+@click.option("--approver", required=True, help="Approver identifier.")
+@click.option("--comment", default=None, help="Optional approval comment.")
+def approval_approve_command(approval_id: str, approver: str, comment: str | None):
+    init_db()
+    service = get_approval_service()
+    row = service.decide(UUID(approval_id), approved=True, approver_id=approver, comment=comment)
+    if row is None:
+        raise click.ClickException("Approval request not found")
+    console.print(f"[green]Approved {row.approval_id}[/green]")
+
+
+@cli.command("approval-deny", help="Deny an approval request.")
+@click.argument("approval_id")
+@click.option("--approver", required=True, help="Approver identifier.")
+@click.option("--comment", default=None, help="Optional denial comment.")
+def approval_deny_command(approval_id: str, approver: str, comment: str | None):
+    init_db()
+    service = get_approval_service()
+    row = service.decide(UUID(approval_id), approved=False, approver_id=approver, comment=comment)
+    if row is None:
+        raise click.ClickException("Approval request not found")
+    console.print(f"[yellow]Denied {row.approval_id}[/yellow]")
 
 
 if __name__ == "__main__":
