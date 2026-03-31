@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     audit_signing_key: Optional[str] = None
 
     approval_webhook_url: Optional[str] = None
+    approval_webhook_secret: Optional[str] = None
     approval_auto_approve_low_risk: bool = False
     approval_webhook_max_attempts: int = 3
     approval_outbox_auto_drain: bool = False

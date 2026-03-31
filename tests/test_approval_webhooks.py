@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from urllib.error import URLError
 from uuid import uuid4
 
@@ -19,8 +21,17 @@ class _SuccessResponse:
 
 def test_webhook_delivery_success(monkeypatch):
     monkeypatch.setattr(settings, 'approval_webhook_url', 'https://example.test/webhook')
+    monkeypatch.setattr(settings, 'approval_webhook_secret', 'super-secret')
     monkeypatch.setattr(settings, 'approval_webhook_max_attempts', 3)
-    monkeypatch.setattr('constrail.approval.urlopen', lambda req, timeout=5: _SuccessResponse(status=204))
+
+    captured = {}
+
+    def _ok(req, timeout=5):
+        captured['signature'] = req.headers.get('X-constrails-signature')
+        captured['body'] = req.data
+        return _SuccessResponse(status=204)
+
+    monkeypatch.setattr('constrail.approval.urlopen', _ok)
 
     service = ApprovalService()
     approval = service.create_request(
@@ -37,13 +48,17 @@ def test_webhook_delivery_success(monkeypatch):
     assert approval.webhook_delivery_attempts == 1
     assert approval.webhook_last_response_code == 204
     assert approval.webhook_last_error is None
+    expected = 'sha256=' + hmac.new(b'super-secret', captured['body'], hashlib.sha256).hexdigest()
+    assert captured['signature'] == expected
 
     monkeypatch.setattr(settings, 'approval_webhook_url', None)
+    monkeypatch.setattr(settings, 'approval_webhook_secret', None)
 
 
 
 def test_webhook_delivery_failure_exhaustion_and_manual_retry(monkeypatch):
     monkeypatch.setattr(settings, 'approval_webhook_url', 'https://example.test/webhook')
+    monkeypatch.setattr(settings, 'approval_webhook_secret', 'super-secret')
     monkeypatch.setattr(settings, 'approval_webhook_max_attempts', 2)
 
     attempts = {'count': 0}

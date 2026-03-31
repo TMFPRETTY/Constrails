@@ -4,6 +4,8 @@ Approval workflow support for Constrail.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 from datetime import datetime, timedelta
 from typing import Optional
@@ -16,6 +18,17 @@ from .database import ApprovalRequestModel, ApprovalWebhookOutboxModel, SessionL
 
 class ApprovalService:
     """Persistence and state transitions for approval-required actions."""
+
+    def _signed_webhook_headers(self, payload_bytes: bytes) -> dict[str, str]:
+        headers = {'Content-Type': 'application/json'}
+        if settings.approval_webhook_secret:
+            digest = hmac.new(
+                settings.approval_webhook_secret.encode('utf-8'),
+                payload_bytes,
+                hashlib.sha256,
+            ).hexdigest()
+            headers['X-Constrails-Signature'] = f'sha256={digest}'
+        return headers
 
     def create_request(
         self,
@@ -258,10 +271,11 @@ class ApprovalService:
             if row is None or not settings.approval_webhook_url:
                 return False
             try:
+                payload_bytes = json.dumps(row.payload).encode('utf-8')
                 req = Request(
                     settings.approval_webhook_url,
-                    data=json.dumps(row.payload).encode('utf-8'),
-                    headers={'Content-Type': 'application/json'},
+                    data=payload_bytes,
+                    headers=self._signed_webhook_headers(payload_bytes),
                     method='POST',
                 )
                 with urlopen(req, timeout=5):
@@ -304,10 +318,11 @@ class ApprovalService:
             finally:
                 db.close()
             return
+        payload_bytes = json.dumps(payload).encode('utf-8')
         req = Request(
             settings.approval_webhook_url,
-            data=json.dumps(payload).encode('utf-8'),
-            headers={'Content-Type': 'application/json'},
+            data=payload_bytes,
+            headers=self._signed_webhook_headers(payload_bytes),
             method='POST',
         )
         try:
