@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field, ConfigDict
 class AgentIdentity(BaseModel):
     """Identity of the agent making a request."""
     agent_id: str = Field(..., description="Unique identifier for the agent")
+    tenant_id: Optional[str] = Field(None, description="Tenant or organization identifier")
+    namespace: Optional[str] = Field(None, description="Logical namespace or project scope")
     session_id: Optional[str] = Field(None, description="Session within the agent")
     capability_hash: Optional[str] = Field(
         None, description="Hash of the capability manifest"
@@ -142,6 +144,8 @@ class AuditRecord(BaseModel):
 class CapabilityManifest(BaseModel):
     """Defines what an agent is allowed to do."""
     agent_id: str
+    tenant_id: Optional[str] = None
+    namespace: Optional[str] = None
     allowed_tools: List[Dict[str, Any]] = Field(
         ..., description="List of tool allowances with constraints"
     )

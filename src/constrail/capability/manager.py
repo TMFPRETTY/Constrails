@@ -35,6 +35,8 @@ class CapabilityManifest:
     """Capability manifest for an agent."""
 
     agent_id: str
+    tenant_id: Optional[str]
+    namespace: Optional[str]
     version: int
     allowances: List[ToolAllowance]
     expires_at: Optional[str] = None
@@ -61,10 +63,13 @@ class CapabilityManager:
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 manifest = self._parse_manifest(data)
-                self.manifests[manifest.agent_id] = manifest
+                self.manifests[self._manifest_key(manifest.agent_id, manifest.tenant_id, manifest.namespace)] = manifest
                 logger.info("Loaded capability manifest for agent %s", manifest.agent_id)
             except Exception as e:
                 logger.error("Failed to load capability manifest %s: %s", filename, e)
+
+    def _manifest_key(self, agent_id: str, tenant_id: Optional[str], namespace: Optional[str]) -> str:
+        return f"{tenant_id or '_'}::{namespace or '_'}::{agent_id}"
 
     def _parse_manifest(self, data: dict) -> CapabilityManifest:
         allowances = []
@@ -87,13 +92,34 @@ class CapabilityManager:
 
         return CapabilityManifest(
             agent_id=data.get("agent_id", "unknown"),
+            tenant_id=data.get("tenant_id"),
+            namespace=data.get("namespace"),
             version=data.get("version", 1),
             allowances=allowances,
             expires_at=data.get("expires_at"),
         )
 
+    def _find_manifest(self, agent: AgentIdentity) -> Optional[CapabilityManifest]:
+        keys = [
+            self._manifest_key(agent.agent_id, agent.tenant_id, agent.namespace),
+            self._manifest_key(agent.agent_id, agent.tenant_id, None),
+            self._manifest_key(agent.agent_id, None, None),
+        ]
+        for key in keys:
+            manifest = self.manifests.get(key)
+            if manifest is not None:
+                return manifest
+
+        # Backwards-compatible fallback for agent-only callers when manifests are tenant-scoped.
+        for manifest in self.manifests.values():
+            if manifest.agent_id == agent.agent_id:
+                if agent.tenant_id is not None and manifest.tenant_id not in {None, agent.tenant_id}:
+                    continue
+                return manifest
+        return None
+
     def is_tool_allowed(self, agent: AgentIdentity, tool: str, parameters: Dict[str, Any]) -> bool:
-        manifest = self.manifests.get(agent.agent_id)
+        manifest = self._find_manifest(agent)
         if manifest is None:
             logger.warning("No capability manifest found for agent %s", agent.agent_id)
             return False
@@ -154,8 +180,9 @@ class CapabilityManager:
                 return True
         return False
 
-    def get_allowed_tools(self, agent_id: str) -> List[str]:
-        manifest = self.manifests.get(agent_id)
+    def get_allowed_tools(self, agent_id: str, tenant_id: Optional[str] = None, namespace: Optional[str] = None) -> List[str]:
+        agent = AgentIdentity(agent_id=agent_id, tenant_id=tenant_id, namespace=namespace)
+        manifest = self._find_manifest(agent)
         if manifest is None:
             return []
         return [a.tool_name for a in manifest.allowances]

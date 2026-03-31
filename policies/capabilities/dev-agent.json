@@ -1,5 +1,7 @@
 {
   "agent_id": "dev-agent",
+  "tenant_id": "default",
+  "namespace": "dev",
   "version": 2,
   "allowances": [
     {
