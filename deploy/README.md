@@ -30,6 +30,12 @@ PYTHONPATH=src .venv/bin/python -m constrail.cli capability-list --json
 PYTHONPATH=src .venv/bin/python -m constrail.cli approval-list --limit 5 --json
 ```
 
+For a serialized local compose smoke run, use:
+
+```bash
+bash scripts/run_compose_opa_smoke.sh
+```
+
 ## Sandbox posture notes
 
 The included Compose stack is still an early-stage example.

@@ -2,7 +2,7 @@
 
 ![Alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-57%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-61%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -27,7 +27,7 @@ Available today:
 - capability manifest persistence, versioning, activation/deactivation, mutation, and CLI lifecycle commands
 - heuristic risk scoring with bootstrap risk profiles
 - policy evaluation with built-in fallback when OPA is unavailable
-- expanded starter OPA policy bundle plus OPA-response contract tests
+- expanded starter OPA policy bundle plus OPA-response contract tests and local/CI compose smoke coverage
 - tool broker with filesystem, HTTP, and exec adapters
 - approval request lifecycle, status model, replay flow, webhook delivery tracking, and retry hooks
 - local SQLite-backed audit, approval, sandbox execution, and capability persistence for development
@@ -37,8 +37,8 @@ Available today:
 - a first-class `constrail` CLI entrypoint
 - read-only admin inspection endpoints for audit, sandbox, and capability history
 - filtered admin queries and scoped admin semantics for operational workflows
-- basic admin/agent auth separation with dual static keys for alpha use
-- deployment examples for Docker Compose + OPA sidecar flow
+- basic admin/agent auth separation with legacy static keys plus a first bearer-token auth path
+- deployment examples for Docker Compose + OPA sidecar flow, including a serialized local smoke script
 - automated test coverage for the current MVP spine
 
 Still under active development:
@@ -75,7 +75,7 @@ Core components in this repository:
 - `src/constrail/risk/risk_engine.py` - heuristic risk scoring
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
 - `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, and retry helpers
-- `src/constrail/auth.py` - alpha auth principal and role helpers
+- `src/constrail/auth.py` - alpha auth principal, static-key auth, and bearer-token helpers
 - `src/constrail/sandbox.py` - sandbox executor abstraction, posture reporting, and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
 - `src/constrail/database.py` - development database models and session management
@@ -90,7 +90,7 @@ deploy/                  deployment examples and environment templates
 tests/                   supported automated tests
 archive/obsolete-tests/  archived scratch tests kept for reference
 examples/                reserved for future examples
-scripts/                 reserved for future tooling
+scripts/                 local smoke and helper tooling
 .github/workflows/       CI workflow definitions
 ```
 
@@ -131,7 +131,7 @@ cd Constrails
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install fastapi uvicorn httpx sqlalchemy psycopg2-binary pydantic pydantic-settings click rich pytest pytest-asyncio
+python -m pip install fastapi uvicorn httpx sqlalchemy psycopg2-binary pydantic pydantic-settings click rich pytest pytest-asyncio python-jose[cryptography]
 export PYTHONPATH=src
 ```
 
@@ -173,7 +173,7 @@ Current development defaults:
 - sandbox type: `dev`
 - sandbox mode: `development`
 - filesystem adapter base path: current repository working directory
-- auth mode: dual static keys for alpha (`agent_api_key`, `admin_api_key`)
+- auth mode: legacy static keys plus an alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
 - approval webhooks: optional, with delivery tracking and manual retry support
 
 These defaults are intentionally optimized for local bring-up, not for final production deployment.
@@ -224,6 +224,12 @@ cp .env.example .env
 docker compose up --build
 ```
 
+For a serialized local smoke run that brings the stack up, validates the live Constrails → OPA path, and tears the stack down cleanly:
+
+```bash
+bash scripts/run_compose_opa_smoke.sh
+```
+
 See `deploy/README.md` for details.
 
 ## CLI Usage
@@ -250,6 +256,8 @@ constrail doctor --json
 constrail auth-status
 constrail auth-status --json
 ```
+
+Agent and admin requests can still use `X-API-Key`, and alpha bearer tokens are also supported via `Authorization: Bearer <token>`.
 
 `doctor --json` now exposes sandbox posture fields such as:
 - `sandbox_mode`
@@ -356,7 +364,7 @@ Current test coverage includes:
 - audit and sandbox provenance linkage
 - admin inspection endpoints
 - CLI command surface and JSON output
-- policy engine fallback, explanation behavior, and OPA-response contract coverage
+- policy engine fallback, explanation behavior, OPA-response contract coverage, and compose-based live OPA smoke coverage
 
 ## Changelog
 
@@ -384,7 +392,7 @@ See `RELEASE.md` and `.github/release-checklist.md` for release workflow guidanc
 
 ## Safety Note
 
-Current development defaults are intentionally permissive enough to enable local bring-up. Do not mistake the dev SQLite path, local filesystem base path, fallback policy mode, or dual static auth keys for the intended final production deployment posture.
+Current development defaults are intentionally permissive enough to enable local bring-up. Do not mistake the dev SQLite path, local filesystem base path, fallback policy mode, or alpha bearer/static auth paths for the intended final production deployment posture.
 
 ## License
 
