@@ -447,6 +447,18 @@ See `CONTRIBUTING.md`.
 
 See `SECURITY.md`.
 
+## Alpha release
+
+A draft alpha release note is included at:
+
+- `.github/release-notes/0.1.0-alpha.md`
+
+Suggested tag:
+
+- `v0.1.0-alpha`
+
+See `RELEASE.md` and `.github/release-checklist.md` for release workflow guidance.
+
 ## Safety Note
 
 Current development defaults are intentionally permissive enough to enable local bring-up.
