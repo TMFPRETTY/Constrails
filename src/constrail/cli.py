@@ -15,6 +15,7 @@ from rich.table import Table
 
 from . import __version__
 from .approval import get_approval_service
+from .capability_store import get_capability_store
 from .config import settings
 from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
 from .kernel_v2 import ConstrailKernel
@@ -184,6 +185,48 @@ def sandbox_list_command(limit: int, as_json: bool):
         console.print(table)
     finally:
         db.close()
+
+
+@cli.command("capability-list", help="List stored capability manifests.")
+@click.option("--agent", "agent_id", default=None, help="Filter by agent ID.")
+@click.option("--active/--all", default=True, help="Filter active manifests only.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def capability_list_command(agent_id: str | None, active: bool, as_json: bool):
+    init_db()
+    store = get_capability_store()
+    rows = store.list_manifests(agent_id=agent_id, active=True if active else None)
+    payload = [
+        {
+            "id": row.id,
+            "agent_id": row.agent_id,
+            "tenant_id": row.tenant_id,
+            "namespace": row.namespace,
+            "version": row.version,
+            "active": row.active,
+        }
+        for row in rows
+    ]
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    table = Table(title="Capability Manifests")
+    table.add_column("ID")
+    table.add_column("Agent")
+    table.add_column("Tenant")
+    table.add_column("Namespace")
+    table.add_column("Version")
+    table.add_column("Active")
+    for row in payload:
+        table.add_row(
+            str(row["id"]),
+            row["agent_id"],
+            row["tenant_id"] or "-",
+            row["namespace"] or "-",
+            str(row["version"]),
+            str(row["active"]),
+        )
+    console.print(table)
 
 
 @cli.command("approval-list", help="List recent approval requests.")
