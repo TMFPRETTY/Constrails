@@ -67,7 +67,14 @@ class AuthService:
         if not settings.secret_key:
             return None
         try:
-            payload = jwt.decode(token, settings.secret_key, algorithms=[settings.token_algorithm])
+            payload = jwt.decode(
+                token,
+                settings.secret_key,
+                algorithms=[settings.token_algorithm],
+                audience=settings.token_audience,
+                issuer=settings.token_issuer,
+                options={'verify_aud': True, 'verify_iss': True},
+            )
         except JWTError:
             return None
 

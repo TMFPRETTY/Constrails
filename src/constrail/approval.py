@@ -127,7 +127,7 @@ class ApprovalService:
         approval = self.get_request(approval_id)
         if approval is None:
             return None
-        self._emit_webhook(approval.approval_id, self._build_retry_payload(approval))
+        self._emit_webhook(approval.approval_id, self._build_retry_payload(approval), allow_exhausted=True)
         return self.get_request(approval.approval_id)
 
     def get_approver_id(self, approval_id: UUID) -> Optional[str]:
@@ -194,8 +194,28 @@ class ApprovalService:
         finally:
             db.close()
 
-    def _emit_webhook(self, approval_id: UUID, payload: dict):
+    def _emit_webhook(self, approval_id: UUID, payload: dict, allow_exhausted: bool = False):
         if not settings.approval_webhook_url:
+            return
+        approval = self.get_request(approval_id)
+        if approval is None:
+            return
+        attempts = approval.webhook_delivery_attempts or 0
+        if attempts >= settings.approval_webhook_max_attempts and not allow_exhausted:
+            approval.webhook_delivery_status = 'exhausted'
+            db = SessionLocal()
+            try:
+                row = (
+                    db.query(ApprovalRequestModel)
+                    .filter(ApprovalRequestModel.approval_id == approval_id)
+                    .first()
+                )
+                if row is not None:
+                    row.webhook_delivery_status = 'exhausted'
+                    row.webhook_last_error = row.webhook_last_error or 'max webhook attempts reached'
+                    db.commit()
+            finally:
+                db.close()
             return
         req = Request(
             settings.approval_webhook_url,
@@ -212,9 +232,14 @@ class ApprovalService:
                     error=None,
                 )
         except Exception as exc:
+            next_attempt = attempts + 1
+            if allow_exhausted:
+                status = 'failed'
+            else:
+                status = 'failed' if next_attempt < settings.approval_webhook_max_attempts else 'exhausted'
             self._record_webhook_delivery(
                 approval_id,
-                status='failed',
+                status=status,
                 response_code=None,
                 error=str(exc),
             )

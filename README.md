@@ -2,7 +2,7 @@
 
 ![Alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-61%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-64%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -29,24 +29,27 @@ Available today:
 - policy evaluation with built-in fallback when OPA is unavailable
 - expanded starter OPA policy bundle plus OPA-response contract tests and local/CI compose smoke coverage
 - tool broker with filesystem, HTTP, and exec adapters
-- approval request lifecycle, status model, replay flow, webhook delivery tracking, and retry hooks
+- approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, and attempt exhaustion tracking
 - local SQLite-backed audit, approval, sandbox execution, and capability persistence for development
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
-- Docker sandbox path hardened with clearer production-posture reporting
+- Docker sandbox path hardened with clearer production-posture reporting and local compose smoke validation
 - a first-class `constrail` CLI entrypoint
 - read-only admin inspection endpoints for audit, sandbox, and capability history
 - filtered admin queries and scoped admin semantics for operational workflows
-- basic admin/agent auth separation with legacy static keys plus a first bearer-token auth path
+- basic admin/agent auth separation with legacy static keys plus a stricter bearer-token auth path with issuer/audience validation
 - deployment examples for Docker Compose + OPA sidecar flow, including a serialized local smoke script
 - automated test coverage for the current MVP spine
 
-Still under active development:
-- production-grade approval UX and durable delivery guarantees
-- verified production-grade containerized sandbox execution defaults across broader deployment targets
-- stronger identity/auth primitives beyond static alpha keys
-- deeper OPA integration coverage against live policy services
-- broader package distribution ergonomics
+## Current gaps toward production use
+
+Constrails has moved well beyond a sketch, but these areas are still maturing toward a more production-grade posture:
+
+- **Approval operations:** manual retry and delivery visibility exist, but a durable queued/outbox delivery model is still not in place.
+- **Sandbox validation breadth:** Docker posture and local smoke coverage are stronger, but broader validation across more deployment targets is still warranted.
+- **Identity/auth lifecycle:** bearer tokens now work with issuer/audience validation, but issuance, rotation, revocation, and stronger identity lifecycle controls are still early.
+- **OPA live integration depth:** local and CI live-path smoke coverage exists, but richer live-policy assertions across more decision classes can still deepen confidence.
+- **Distribution ergonomics:** install and release flows are better than they were, but broader packaging/distribution polish is still possible.
 
 ## Why Constrails
 
@@ -74,7 +77,7 @@ Core components in this repository:
 - `src/constrail/capability_store.py` - capability manifest persistence and lifecycle helpers
 - `src/constrail/risk/risk_engine.py` - heuristic risk scoring
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
-- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, and retry helpers
+- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, retry, and attempt exhaustion helpers
 - `src/constrail/auth.py` - alpha auth principal, static-key auth, and bearer-token helpers
 - `src/constrail/sandbox.py` - sandbox executor abstraction, posture reporting, and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
@@ -173,8 +176,8 @@ Current development defaults:
 - sandbox type: `dev`
 - sandbox mode: `development`
 - filesystem adapter base path: current repository working directory
-- auth mode: legacy static keys plus an alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
-- approval webhooks: optional, with delivery tracking and manual retry support
+- auth mode: legacy static keys plus a stricter alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
+- approval webhooks: optional, with delivery tracking, retry support, and attempt limits
 
 These defaults are intentionally optimized for local bring-up, not for final production deployment.
 
@@ -357,14 +360,14 @@ Current test coverage includes:
 - fail-closed behavior
 - broker dispatch
 - filesystem adapter behavior
-- approval request lifecycle, webhook delivery tracking, and auth boundaries
+- approval request lifecycle, webhook delivery tracking, retry, and exhaustion behavior
 - capability constraints and lifecycle management
 - exec adapter sandbox behavior
 - sandbox executor selection, posture reporting, and replay flow
 - audit and sandbox provenance linkage
 - admin inspection endpoints
 - CLI command surface and JSON output
-- policy engine fallback, explanation behavior, OPA-response contract coverage, and compose-based live OPA smoke coverage
+- policy engine fallback, explanation behavior, richer OPA-response contract coverage, and compose-based live OPA smoke coverage
 
 ## Changelog
 

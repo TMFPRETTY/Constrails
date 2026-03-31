@@ -19,6 +19,7 @@ class _SuccessResponse:
 
 def test_webhook_delivery_success(monkeypatch):
     monkeypatch.setattr(settings, 'approval_webhook_url', 'https://example.test/webhook')
+    monkeypatch.setattr(settings, 'approval_webhook_max_attempts', 3)
     monkeypatch.setattr('constrail.approval.urlopen', lambda req, timeout=5: _SuccessResponse(status=204))
 
     service = ApprovalService()
@@ -41,14 +42,15 @@ def test_webhook_delivery_success(monkeypatch):
 
 
 
-def test_webhook_delivery_failure_and_retry(monkeypatch):
+def test_webhook_delivery_failure_exhaustion_and_manual_retry(monkeypatch):
     monkeypatch.setattr(settings, 'approval_webhook_url', 'https://example.test/webhook')
+    monkeypatch.setattr(settings, 'approval_webhook_max_attempts', 2)
 
     attempts = {'count': 0}
 
     def _flaky(req, timeout=5):
         attempts['count'] += 1
-        if attempts['count'] == 1:
+        if attempts['count'] < 3:
             raise URLError('network down')
         return _SuccessResponse(status=202)
 
@@ -70,11 +72,16 @@ def test_webhook_delivery_failure_and_retry(monkeypatch):
     assert approval.webhook_last_response_code is None
     assert 'network down' in approval.webhook_last_error
 
-    retried = service.retry_webhook(approval.approval_id)
-    assert retried is not None
-    assert retried.webhook_delivery_status == 'delivered'
-    assert retried.webhook_delivery_attempts == 2
-    assert retried.webhook_last_response_code == 202
-    assert retried.webhook_last_error is None
+    second = service.retry_webhook(approval.approval_id)
+    assert second is not None
+    assert second.webhook_delivery_status == 'failed'
+    assert second.webhook_delivery_attempts == 2
+
+    third = service.retry_webhook(approval.approval_id)
+    assert third is not None
+    assert third.webhook_delivery_status == 'delivered'
+    assert third.webhook_delivery_attempts == 3
+    assert third.webhook_last_response_code == 202
+    assert third.webhook_last_error is None
 
     monkeypatch.setattr(settings, 'approval_webhook_url', None)

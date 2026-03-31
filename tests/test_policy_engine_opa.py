@@ -22,7 +22,7 @@ def run(coro):
 
 
 
-def test_policy_engine_uses_opa_result_contract(monkeypatch):
+def test_policy_engine_uses_opa_result_contract_for_sandbox(monkeypatch):
     engine = PolicyEngine(opa_url='http://opa.test', policy_package='constrail')
 
     async def _fake_post(url, json):
@@ -52,6 +52,70 @@ def test_policy_engine_uses_opa_result_contract(monkeypatch):
     assert result.decision.value == 'sandbox'
     assert result.message == 'OPA says sandbox this request'
     assert result.rule_ids == ['opa_sandbox_rule']
+
+    run(engine.close())
+
+
+
+def test_policy_engine_uses_opa_result_contract_for_approval(monkeypatch):
+    engine = PolicyEngine(opa_url='http://opa.test', policy_package='constrail')
+
+    async def _fake_post(url, json):
+        return _FakeResponse(
+            {
+                'result': {
+                    'decision': 'approval_required',
+                    'message': 'OPA wants approval',
+                    'rule_ids': ['opa_approval_rule'],
+                }
+            }
+        )
+
+    monkeypatch.setattr(engine.client, 'post', _fake_post)
+
+    risk_engine = get_risk_engine()
+    request = ActionRequest(
+        agent=AgentIdentity(agent_id='dev-agent', tenant_id='default', namespace='dev', trust_level=0.8),
+        call=ToolCall(tool='exec', parameters={'command': 'echo hi'}),
+        context={'goal': 'opa approval test'},
+    )
+    risk = risk_engine.assess(request)
+    result = run(engine.evaluate(request, risk))
+
+    assert result.decision.value == 'approval_required'
+    assert result.rule_ids == ['opa_approval_rule']
+
+    run(engine.close())
+
+
+
+def test_policy_engine_uses_opa_result_contract_for_deny(monkeypatch):
+    engine = PolicyEngine(opa_url='http://opa.test', policy_package='constrail')
+
+    async def _fake_post(url, json):
+        return _FakeResponse(
+            {
+                'result': {
+                    'decision': 'deny',
+                    'message': 'OPA denies this request',
+                    'rule_ids': ['opa_deny_rule'],
+                }
+            }
+        )
+
+    monkeypatch.setattr(engine.client, 'post', _fake_post)
+
+    risk_engine = get_risk_engine()
+    request = ActionRequest(
+        agent=AgentIdentity(agent_id='dev-agent', tenant_id='default', namespace='dev', trust_level=0.8),
+        call=ToolCall(tool='delete_file', parameters={'path': '/etc/passwd'}),
+        context={'goal': 'opa deny test'},
+    )
+    risk = risk_engine.assess(request)
+    result = run(engine.evaluate(request, risk))
+
+    assert result.decision.value == 'deny'
+    assert result.rule_ids == ['opa_deny_rule']
 
     run(engine.close())
 

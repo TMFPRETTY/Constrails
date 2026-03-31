@@ -13,8 +13,13 @@ ADMIN_HEADERS = {'X-API-Key': 'dev-admin'}
 BAD_HEADERS = {'X-API-Key': 'nope'}
 
 
-def _make_token(role: str, sub: str, tenant_id: str | None = None, namespace: str | None = None, agent_id: str | None = None) -> str:
-    payload = {'role': role, 'sub': sub}
+def _make_token(role: str, sub: str, tenant_id: str | None = None, namespace: str | None = None, agent_id: str | None = None, issuer: str | None = None, audience: str | None = None) -> str:
+    payload = {
+        'role': role,
+        'sub': sub,
+        'iss': issuer or settings.token_issuer,
+        'aud': audience or settings.token_audience,
+    }
     if agent_id is not None:
         payload['agent_id'] = agent_id
     if tenant_id is not None:
@@ -65,6 +70,13 @@ def test_admin_endpoint_accepts_admin_bearer_token():
     token = _make_token('admin', 'admin-token', tenant_id='default', namespace='dev')
     response = client.get('/v1/admin/audit', headers={'Authorization': f'Bearer {token}'})
     assert response.status_code == 200
+
+
+
+def test_invalid_bearer_token_claims_rejected():
+    token = _make_token('admin', 'admin-token', issuer='wrong-issuer')
+    response = client.get('/v1/admin/audit', headers={'Authorization': f'Bearer {token}'})
+    assert response.status_code == 403
 
 
 

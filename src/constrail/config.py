@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     token_algorithm: str = "HS256"
     token_expire_minutes: int = 30
+    token_issuer: str = "constrails"
+    token_audience: str = "constrails-api"
     agent_api_key: str = "dev-agent"
     admin_api_key: str = "dev-admin"
     agent_tenant_id: str = "default"
@@ -59,6 +61,7 @@ class Settings(BaseSettings):
 
     approval_webhook_url: Optional[str] = None
     approval_auto_approve_low_risk: bool = False
+    approval_webhook_max_attempts: int = 3
 
     anomaly_detection_enabled: bool = True
     anomaly_burst_threshold: int = 100
