@@ -28,8 +28,8 @@ class PolicyEngine:
         Returns a PolicyEvaluation.
         """
         input_data = {
-            "request": request.model_dump(),
-            "risk": risk.model_dump(),
+            "request": request.model_dump(mode="json"),
+            "risk": risk.model_dump(mode="json"),
         }
         
         # Try OPA first, fallback to simple rules if OPA unavailable

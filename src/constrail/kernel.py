@@ -1,19 +1,18 @@
 """
-Constrail Kernel – the central entry point for agent actions.
+Constrail FastAPI application.
+Thin API wrapper around the canonical ConstrailKernel implementation.
 """
 
 import logging
-from fastapi import FastAPI, HTTPException, Depends, Request
-from fastapi.responses import JSONResponse
-from .models import (
-    ActionRequest,
-    ActionResponse,
-    Decision,
-    RiskAssessment,
-    PolicyEvaluation,
-    EnrichedAction,
-)
+from uuid import UUID
+
+from fastapi import Depends, FastAPI, HTTPException, Request
+
+from .approval import get_approval_service
+from .approval_models import ApprovalDecisionRequest, ApprovalRequestResponse
 from .config import settings
+from .kernel_v2 import get_kernel
+from .models import ActionRequest, ActionResponse
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +26,11 @@ app = FastAPI(
 
 def authenticate_request(request: Request) -> str:
     """Extract and validate API key from request headers.
-    MVP: simple header check.
+    MVP: simple header check where API key maps to agent_id.
     """
     api_key = request.headers.get("X-API-Key")
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API key")
-    # TODO: validate key against database
-    # For now, assume key is agent_id
     return api_key
 
 
@@ -46,140 +43,59 @@ async def health():
 async def execute_action(
     request: ActionRequest, auth_token: str = Depends(authenticate_request)
 ):
-    """Main endpoint for agent tool calls."""
-    # Enrich with identity (MVP: use auth token as agent_id)
     request.agent.agent_id = auth_token
-
-    # 1. Context enrichment (placeholder)
-    # 2. Risk assessment
-    risk = await assess_risk(request)
-    # 3. Policy evaluation
-    policy = await evaluate_policy(request, risk)
-    # 4. Capability check
-    capability_ok = await check_capability(request)
-    # 5. Decision
-    enriched = EnrichedAction(
-        request=request,
-        risk=risk,
-        policy=policy,
-        capability_check_passed=capability_ok,
-    )
-    decision = await make_decision(enriched)
-    enriched.final_decision = decision
-
-    # 6. Audit logging
-    await audit_log(enriched)
-
-    # 7. Execute if allowed, otherwise return appropriate response
-    if decision == Decision.ALLOW:
-        result = await execute_tool(request.call)
-        return ActionResponse(
-            request_id=request.request_id,
-            decision=decision,
-            result=result,
-        )
-    elif decision == Decision.DENY:
-        return ActionResponse(
-            request_id=request.request_id,
-            decision=decision,
-            error="Action denied by policy",
-        )
-    elif decision == Decision.APPROVAL_REQUIRED:
-        approval_id = await create_approval_request(enriched)
-        return ActionResponse(
-            request_id=request.request_id,
-            decision=decision,
-            approval_url=f"/approval/{approval_id}",
-        )
-    elif decision == Decision.SANDBOX:
-        sandbox_id = await execute_in_sandbox(request.call)
-        return ActionResponse(
-            request_id=request.request_id,
-            decision=decision,
-            sandbox_id=sandbox_id,
-            result=await get_sandbox_result(sandbox_id),
-        )
-    elif decision == Decision.QUARANTINE:
-        # Quarantine the agent session
-        await quarantine_agent(request.agent.agent_id)
-        return ActionResponse(
-            request_id=request.request_id,
-            decision=decision,
-            error="Agent quarantined due to high risk",
-        )
-    else:
-        raise HTTPException(status_code=500, detail="Unexpected decision")
+    kernel = await get_kernel()
+    return await kernel.process(request)
 
 
-# Stub implementations for MVP
-async def assess_risk(request: ActionRequest) -> RiskAssessment:
-    """Placeholder risk engine."""
-    # TODO: implement real risk scoring
-    from .models import RiskLevel
-    return RiskAssessment(
-        score=0.2,
-        level=RiskLevel.LOW,
-        factors=["tool is low risk"],
-        explanation="MVP stub",
-    )
+@app.get("/v1/approval", response_model=list[ApprovalRequestResponse])
+async def list_approvals(auth_token: str = Depends(authenticate_request)):
+    service = get_approval_service()
+    return [ApprovalRequestResponse.from_db(row) for row in service.list_requests()]
 
 
-async def evaluate_policy(
-    request: ActionRequest, risk: RiskAssessment
-) -> PolicyEvaluation:
-    """Placeholder policy engine."""
-    # TODO: integrate OPA or builtin policy engine
-    from .models import Decision
-    return PolicyEvaluation(
-        decision=Decision.ALLOW,
-        rule_ids=["allow_all_mvp"],
-        message="MVP stub",
-    )
+@app.get("/v1/approval/{approval_id}", response_model=ApprovalRequestResponse)
+async def get_approval(approval_id: UUID, auth_token: str = Depends(authenticate_request)):
+    service = get_approval_service()
+    row = service.get_request(approval_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Approval request not found")
+    return ApprovalRequestResponse.from_db(row)
 
 
-async def check_capability(request: ActionRequest) -> bool:
-    """Placeholder capability check."""
-    # TODO: query capability manifest
-    return True
+@app.post("/v1/approval/{approval_id}/approve", response_model=ApprovalRequestResponse)
+async def approve_request(
+    approval_id: UUID,
+    body: ApprovalDecisionRequest,
+    auth_token: str = Depends(authenticate_request),
+):
+    service = get_approval_service()
+    row = service.decide(approval_id, approved=True, approver_id=body.approver_id, comment=body.comment)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Approval request not found")
+    return ApprovalRequestResponse.from_db(row)
 
 
-async def make_decision(enriched: EnrichedAction) -> Decision:
-    """Placeholder decision logic."""
-    # TODO: combine risk, policy, capability
-    return enriched.policy.decision
+@app.post("/v1/approval/{approval_id}/deny", response_model=ApprovalRequestResponse)
+async def deny_request(
+    approval_id: UUID,
+    body: ApprovalDecisionRequest,
+    auth_token: str = Depends(authenticate_request),
+):
+    service = get_approval_service()
+    row = service.decide(approval_id, approved=False, approver_id=body.approver_id, comment=body.comment)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Approval request not found")
+    return ApprovalRequestResponse.from_db(row)
 
 
-async def audit_log(enriched: EnrichedAction):
-    """Placeholder audit logging."""
-    logger.info(
-        "Audit: agent=%s tool=%s decision=%s",
-        enriched.request.agent.agent_id,
-        enriched.request.call.tool,
-        enriched.final_decision,
-    )
-
-
-async def execute_tool(call):
-    """Placeholder tool execution."""
-    # TODO: invoke tool broker
-    return {"status": "success", "output": f"Executed {call.tool} with {call.parameters}"}
-
-
-async def create_approval_request(enriched: EnrichedAction) -> str:
-    """Placeholder approval creation."""
-    return "approval-123"
-
-
-async def execute_in_sandbox(call):
-    """Placeholder sandbox execution."""
-    return "sandbox-456"
-
-
-async def get_sandbox_result(sandbox_id: str):
-    """Placeholder sandbox result."""
-    return {"output": "sandbox result stub"}
-
-
-async def quarantine_agent(agent_id: str):
-    """Placeholder quarantine."""
-    logger.warning("Agent %s quarantined", agent_id)
+@app.post("/v1/approval/{approval_id}/replay", response_model=ActionResponse)
+async def replay_approved_request(
+    approval_id: UUID,
+    auth_token: str = Depends(authenticate_request),
+):
+    kernel = await get_kernel()
+    try:
+        return await kernel.replay_approved(approval_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

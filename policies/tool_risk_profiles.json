@@ -1,0 +1,8 @@
+{
+  "read_file": {"base_risk": 0.1, "category": "filesystem"},
+  "list_directory": {"base_risk": 0.1, "category": "filesystem"},
+  "write_file": {"base_risk": 0.6, "category": "filesystem"},
+  "delete_file": {"base_risk": 0.8, "category": "filesystem"},
+  "http_request": {"base_risk": 0.5, "category": "network"},
+  "exec": {"base_risk": 0.9, "category": "execution"}
+}

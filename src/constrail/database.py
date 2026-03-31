@@ -2,14 +2,14 @@
 Database models and session management.
 """
 
-from sqlalchemy import create_engine, Column, String, Text, JSON, Float, Integer, Boolean, DateTime, ForeignKey, Enum as SQLEnum
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
-from sqlalchemy.dialects.postgresql import UUID
+import logging
 import uuid
 from datetime import datetime
 from enum import Enum as PythonEnum
-import logging
+
+from sqlalchemy import Boolean, Column, DateTime, Enum as SQLEnum, Float, Integer, JSON, String, Text, create_engine
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .config import settings
 
@@ -35,6 +35,7 @@ class RiskLevel(PythonEnum):
 
 class AuditRecordModel(Base):
     """SQLAlchemy model for audit records."""
+
     __tablename__ = "audit_records"
 
     audit_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -57,6 +58,7 @@ class AuditRecordModel(Base):
 
 class ApprovalRequestModel(Base):
     """Approval requests awaiting human review."""
+
     __tablename__ = "approval_requests"
 
     approval_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -66,10 +68,10 @@ class ApprovalRequestModel(Base):
     parameters = Column(JSON, nullable=False)
     risk_score = Column(Float, nullable=False)
     risk_level = Column(SQLEnum(RiskLevel), nullable=False)
-    policy_evaluation = Column(JSON, nullable=False)  # serialized PolicyEvaluation
+    policy_evaluation = Column(JSON, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
-    approved = Column(Boolean, nullable=True, default=None)  # None = pending, True/False decided
+    approved = Column(Boolean, nullable=True, default=None)
     approver_id = Column(String, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
     review_comment = Column(Text, nullable=True)
@@ -77,12 +79,13 @@ class ApprovalRequestModel(Base):
 
 class CapabilityManifestModel(Base):
     """Stored capability manifests."""
+
     __tablename__ = "capability_manifests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     agent_id = Column(String, nullable=False, index=True)
     version = Column(Integer, nullable=False, default=1)
-    allowed_tools = Column(JSON, nullable=False)  # list of tool allowances
+    allowed_tools = Column(JSON, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
     active = Column(Boolean, nullable=False, default=True)
@@ -90,6 +93,7 @@ class CapabilityManifestModel(Base):
 
 class SandboxExecutionModel(Base):
     """Sandbox execution records."""
+
     __tablename__ = "sandbox_executions"
 
     sandbox_id = Column(String, primary_key=True)
@@ -98,7 +102,7 @@ class SandboxExecutionModel(Base):
     tool = Column(String, nullable=False)
     parameters = Column(JSON, nullable=False)
     container_id = Column(String, nullable=True)
-    status = Column(String, nullable=False, default="pending")  # pending, running, completed, failed
+    status = Column(String, nullable=False, default="pending")
     result = Column(JSON, nullable=True)
     error = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -106,8 +110,14 @@ class SandboxExecutionModel(Base):
     duration_ms = Column(Integer, nullable=True)
 
 
-# Create engine and session factory
-engine = create_engine(settings.database_url, echo=settings.database_echo)
+def _build_database_url() -> str:
+    if settings.database_url:
+        return settings.database_url
+    return "sqlite:///./constrail-dev.db"
+
+
+DATABASE_URL = _build_database_url()
+engine = create_engine(DATABASE_URL, echo=settings.database_echo)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

@@ -106,6 +106,9 @@ class ActionResponse(BaseModel):
         None, description="Tool execution result (if allowed)"
     )
     error: Optional[str] = Field(None, description="Error message (if denied/failed)")
+    approval_id: Optional[UUID] = Field(
+        None, description="Approval request ID (if decision=APPROVAL_REQUIRED)"
+    )
     approval_url: Optional[str] = Field(
         None, description="URL for human approval (if decision=APPROVAL_REQUIRED)"
     )

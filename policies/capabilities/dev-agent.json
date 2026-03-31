@@ -1,0 +1,29 @@
+{
+  "agent_id": "dev-agent",
+  "version": 1,
+  "allowances": [
+    {
+      "tool": "read_file",
+      "allowed_parameters": ["path"]
+    },
+    {
+      "tool": "list_directory",
+      "allowed_parameters": ["path"]
+    },
+    {
+      "tool": "write_file",
+      "allowed_parameters": ["path", "content"],
+      "require_approval": true
+    },
+    {
+      "tool": "http_request",
+      "allowed_parameters": ["method", "url", "headers", "params", "json", "body", "timeout"],
+      "require_approval": true
+    },
+    {
+      "tool": "exec",
+      "allowed_parameters": ["command", "timeout", "cwd", "env"],
+      "require_approval": true
+    }
+  ]
+}

@@ -3,25 +3,26 @@ Base classes for tool adapters.
 """
 
 import abc
-from typing import Any, Dict
-from ..models import ToolCall
+
+from ..models import ToolCall, ToolResult
 
 
 class ToolAdapter(abc.ABC):
     """Abstract base class for all tool adapters."""
 
     @abc.abstractmethod
-    async def execute(self, call: ToolCall) -> Dict[str, Any]:
-        """Execute the tool call and return a result dict."""
-        pass
+    async def execute(self, call: ToolCall) -> ToolResult:
+        """Execute the tool call and return a ToolResult."""
+        raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def tool_name(self) -> str:
         """Name of the tool this adapter handles."""
-        pass
+        raise NotImplementedError
 
 
 class AdapterError(Exception):
     """Raised when a tool adapter encounters an error."""
+
     pass

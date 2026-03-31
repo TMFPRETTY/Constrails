@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Database
-    database_url: str = "postgresql://postgres:postgres@localhost/constrail"
+    database_url: str = "sqlite:///./constrail-dev.db"
     database_pool_size: int = 5
     database_echo: bool = False
 
