@@ -32,6 +32,11 @@ class ApprovalRequestResponse(BaseModel):
     review_comment: Optional[str] = None
     replay_url: Optional[str] = None
     status: str
+    webhook_delivery_status: str
+    webhook_delivery_attempts: int
+    webhook_last_attempt_at: Optional[datetime] = None
+    webhook_last_response_code: Optional[int] = None
+    webhook_last_error: Optional[str] = None
 
     @classmethod
     def from_db(cls, row):
@@ -57,4 +62,9 @@ class ApprovalRequestResponse(BaseModel):
             review_comment=row.review_comment,
             replay_url=f"/v1/approval/{row.approval_id}/replay" if row.approved is True else None,
             status=status,
+            webhook_delivery_status=getattr(row, 'webhook_delivery_status', 'unknown'),
+            webhook_delivery_attempts=getattr(row, 'webhook_delivery_attempts', 0),
+            webhook_last_attempt_at=getattr(row, 'webhook_last_attempt_at', None),
+            webhook_last_response_code=getattr(row, 'webhook_last_response_code', None),
+            webhook_last_error=getattr(row, 'webhook_last_error', None),
         )

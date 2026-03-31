@@ -15,6 +15,7 @@ from rich.table import Table
 
 from . import __version__
 from .approval import get_approval_service
+from .approval_models import ApprovalRequestResponse
 from .auth import get_auth_service
 from .capability_store import get_capability_store
 from .config import settings
@@ -286,7 +287,7 @@ def approval_show_command(approval_id: str, as_json: bool):
     row = service.get_request(UUID(approval_id))
     if row is None:
         raise click.ClickException("Approval request not found")
-    payload = {"approval_id": str(row.approval_id), "request_id": str(row.request_id), "agent_id": row.agent_id, "tool": row.tool, "parameters": row.parameters, "approved": row.approved, "approver_id": row.approver_id, "review_comment": row.review_comment}
+    payload = ApprovalRequestResponse.from_db(row).model_dump(mode="json")
     if as_json:
         click.echo(json.dumps(payload, indent=2))
         return

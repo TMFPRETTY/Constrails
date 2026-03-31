@@ -73,6 +73,11 @@ class ApprovalRequestModel(Base):
     approver_id = Column(String, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
     review_comment = Column(Text, nullable=True)
+    webhook_delivery_status = Column(String, nullable=False, default="not_configured")
+    webhook_delivery_attempts = Column(Integer, nullable=False, default=0)
+    webhook_last_attempt_at = Column(DateTime, nullable=True)
+    webhook_last_response_code = Column(Integer, nullable=True)
+    webhook_last_error = Column(Text, nullable=True)
 
 
 class CapabilityManifestModel(Base):

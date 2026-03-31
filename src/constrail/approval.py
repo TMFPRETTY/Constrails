@@ -45,11 +45,14 @@ class ApprovalService:
                 risk_score=risk_score,
                 risk_level=risk_level.upper(),
                 policy_evaluation=policy_evaluation,
+                webhook_delivery_status='not_configured' if not settings.approval_webhook_url else 'pending',
+                webhook_delivery_attempts=0,
             )
             db.add(approval)
             db.commit()
             db.refresh(approval)
             self._emit_webhook(
+                approval.approval_id,
                 {
                     "event": "approval.created",
                     "approval_id": str(approval.approval_id),
@@ -58,9 +61,9 @@ class ApprovalService:
                     "tool": approval.tool,
                     "risk_score": approval.risk_score,
                     "risk_level": approval.risk_level.value if hasattr(approval.risk_level, 'value') else str(approval.risk_level),
-                }
+                },
             )
-            return approval
+            return self.get_request(approval.approval_id)
         finally:
             db.close()
 
@@ -118,6 +121,7 @@ class ApprovalService:
             db.commit()
             db.refresh(approval)
             self._emit_webhook(
+                approval.approval_id,
                 {
                     "event": "approval.approved" if approved else "approval.denied",
                     "approval_id": str(approval.approval_id),
@@ -126,9 +130,9 @@ class ApprovalService:
                     "tool": approval.tool,
                     "approver_id": approval.approver_id,
                     "review_comment": approval.review_comment,
-                }
+                },
             )
-            return approval
+            return self.get_request(approval.approval_id)
         finally:
             db.close()
 
@@ -138,7 +142,33 @@ class ApprovalService:
             return None
         return approval.approver_id
 
-    def _emit_webhook(self, payload: dict):
+    def _record_webhook_delivery(
+        self,
+        approval_id: UUID,
+        *,
+        status: str,
+        response_code: int | None = None,
+        error: str | None = None,
+    ):
+        db = SessionLocal()
+        try:
+            approval = (
+                db.query(ApprovalRequestModel)
+                .filter(ApprovalRequestModel.approval_id == approval_id)
+                .first()
+            )
+            if approval is None:
+                return
+            approval.webhook_delivery_status = status
+            approval.webhook_delivery_attempts = (approval.webhook_delivery_attempts or 0) + 1
+            approval.webhook_last_attempt_at = datetime.utcnow()
+            approval.webhook_last_response_code = response_code
+            approval.webhook_last_error = error
+            db.commit()
+        finally:
+            db.close()
+
+    def _emit_webhook(self, approval_id: UUID, payload: dict):
         if not settings.approval_webhook_url:
             return
         req = Request(
@@ -148,11 +178,20 @@ class ApprovalService:
             method='POST',
         )
         try:
-            with urlopen(req, timeout=5):
-                pass
-        except Exception:
-            # Best-effort only for now; approval flow should not fail on webhook delivery.
-            pass
+            with urlopen(req, timeout=5) as response:
+                self._record_webhook_delivery(
+                    approval_id,
+                    status='delivered',
+                    response_code=getattr(response, 'status', None),
+                    error=None,
+                )
+        except Exception as exc:
+            self._record_webhook_delivery(
+                approval_id,
+                status='failed',
+                response_code=None,
+                error=str(exc),
+            )
 
 
 _default_approval_service: Optional[ApprovalService] = None

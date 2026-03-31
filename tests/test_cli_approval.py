@@ -31,6 +31,7 @@ def test_approval_management_commands():
     show_result = runner.invoke(cli, ['approval-show', approval_id, '--json'])
     assert show_result.exit_code == 0
     assert approval_id in show_result.output
+    assert '"webhook_delivery_status"' in show_result.output
 
     approve_result = runner.invoke(
         cli,
