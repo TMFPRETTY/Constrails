@@ -262,7 +262,7 @@ def approval_list_command(limit: int, approved: str | None, agent_id: str | None
     if approved == "pending":
         rows = [row for row in rows if row.approved is None]
 
-    payload = [{"approval_id": str(row.approval_id), "tool": row.tool, "agent_id": row.agent_id, "approved": row.approved, "approver_id": row.approver_id} for row in rows]
+    payload = [{"approval_id": str(row.approval_id), "tool": row.tool, "agent_id": row.agent_id, "approved": row.approved, "approver_id": row.approver_id, "webhook_delivery_status": getattr(row, 'webhook_delivery_status', 'unknown'), "webhook_delivery_attempts": getattr(row, 'webhook_delivery_attempts', 0)} for row in rows]
     if as_json:
         click.echo(json.dumps(payload, indent=2))
         return
@@ -272,9 +272,10 @@ def approval_list_command(limit: int, approved: str | None, agent_id: str | None
     table.add_column("Tool")
     table.add_column("Agent")
     table.add_column("Approved")
-    table.add_column("Approver")
+    table.add_column("Webhook")
+    table.add_column("Attempts")
     for row in payload:
-        table.add_row(row["approval_id"], row["tool"], row["agent_id"], str(row["approved"]), row["approver_id"] or "-")
+        table.add_row(row["approval_id"], row["tool"], row["agent_id"], str(row["approved"]), row["webhook_delivery_status"], str(row["webhook_delivery_attempts"]))
     console.print(table)
 
 
@@ -318,6 +319,22 @@ def approval_deny_command(approval_id: str, approver: str, comment: str | None):
     if row is None:
         raise click.ClickException("Approval request not found")
     console.print(f"[yellow]Denied {row.approval_id}[/yellow]")
+
+
+@cli.command("approval-retry-webhook", help="Retry webhook delivery for an approval request.")
+@click.argument("approval_id")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def approval_retry_webhook_command(approval_id: str, as_json: bool):
+    init_db()
+    service = get_approval_service()
+    row = service.retry_webhook(UUID(approval_id))
+    if row is None:
+        raise click.ClickException("Approval request not found")
+    payload = ApprovalRequestResponse.from_db(row).model_dump(mode="json")
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print(f"[green]Retried webhook for {row.approval_id} ({row.webhook_delivery_status})[/green]")
 
 
 @cli.command("approval-replay", help="Replay an already approved request.")

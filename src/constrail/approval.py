@@ -53,15 +53,7 @@ class ApprovalService:
             db.refresh(approval)
             self._emit_webhook(
                 approval.approval_id,
-                {
-                    "event": "approval.created",
-                    "approval_id": str(approval.approval_id),
-                    "request_id": str(approval.request_id),
-                    "agent_id": approval.agent_id,
-                    "tool": approval.tool,
-                    "risk_score": approval.risk_score,
-                    "risk_level": approval.risk_level.value if hasattr(approval.risk_level, 'value') else str(approval.risk_level),
-                },
+                self._build_event_payload(approval, 'approval.created'),
             )
             return self.get_request(approval.approval_id)
         finally:
@@ -122,25 +114,59 @@ class ApprovalService:
             db.refresh(approval)
             self._emit_webhook(
                 approval.approval_id,
-                {
-                    "event": "approval.approved" if approved else "approval.denied",
-                    "approval_id": str(approval.approval_id),
-                    "request_id": str(approval.request_id),
-                    "agent_id": approval.agent_id,
-                    "tool": approval.tool,
-                    "approver_id": approval.approver_id,
-                    "review_comment": approval.review_comment,
-                },
+                self._build_event_payload(
+                    approval,
+                    'approval.approved' if approved else 'approval.denied',
+                ),
             )
             return self.get_request(approval.approval_id)
         finally:
             db.close()
+
+    def retry_webhook(self, approval_id: UUID) -> Optional[ApprovalRequestModel]:
+        approval = self.get_request(approval_id)
+        if approval is None:
+            return None
+        self._emit_webhook(approval.approval_id, self._build_retry_payload(approval))
+        return self.get_request(approval.approval_id)
 
     def get_approver_id(self, approval_id: UUID) -> Optional[str]:
         approval = self.get_request(approval_id)
         if approval is None:
             return None
         return approval.approver_id
+
+    def _build_event_payload(self, approval: ApprovalRequestModel, event: str) -> dict:
+        payload = {
+            'event': event,
+            'approval_id': str(approval.approval_id),
+            'request_id': str(approval.request_id),
+            'agent_id': approval.agent_id,
+            'tool': approval.tool,
+            'status': self._status_for(approval),
+            'webhook_delivery_attempts': approval.webhook_delivery_attempts or 0,
+        }
+        if event == 'approval.created':
+            payload['risk_score'] = approval.risk_score
+            payload['risk_level'] = approval.risk_level.value if hasattr(approval.risk_level, 'value') else str(approval.risk_level)
+        if approval.approver_id:
+            payload['approver_id'] = approval.approver_id
+        if approval.review_comment:
+            payload['review_comment'] = approval.review_comment
+        return payload
+
+    def _build_retry_payload(self, approval: ApprovalRequestModel) -> dict:
+        payload = self._build_event_payload(approval, 'approval.retry')
+        payload['last_webhook_delivery_status'] = approval.webhook_delivery_status
+        payload['last_webhook_last_error'] = approval.webhook_last_error
+        return payload
+
+    def _status_for(self, approval: ApprovalRequestModel) -> str:
+        if approval.approved is True:
+            return 'approved'
+        if approval.approved is False:
+            return 'denied'
+        return 'pending'
 
     def _record_webhook_delivery(
         self,

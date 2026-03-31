@@ -2,7 +2,7 @@
 
 ![Alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-48%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-51%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -29,7 +29,7 @@ Available today:
 - policy evaluation with built-in fallback when OPA is unavailable
 - sample OPA policy assets and package layout under `policies/rego/`
 - tool broker with filesystem, HTTP, and exec adapters
-- approval request lifecycle, status model, replay flow, and approval webhook hooks
+- approval request lifecycle, status model, replay flow, webhook delivery tracking, and retry hooks
 - local SQLite-backed audit, approval, sandbox execution, and capability persistence for development
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
@@ -42,7 +42,7 @@ Available today:
 - automated test coverage for the current MVP spine
 
 Still under active development:
-- production-grade approval UX and delivery guarantees
+- production-grade approval UX and durable delivery guarantees
 - verified production-grade containerized sandbox execution defaults for broader deployment targets
 - stronger tenant-aware admin controls and lifecycle governance
 - deeper OPA policy coverage beyond the starter bundle
@@ -74,7 +74,7 @@ Core components in this repository:
 - `src/constrail/capability_store.py` - capability manifest persistence and lifecycle helpers
 - `src/constrail/risk/risk_engine.py` - heuristic risk scoring
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
-- `src/constrail/approval.py` - approval persistence, status, and webhook hooks
+- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, and retry helpers
 - `src/constrail/auth.py` - alpha auth principal and role helpers
 - `src/constrail/sandbox.py` - sandbox executor abstraction and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
@@ -173,6 +173,7 @@ Current development defaults:
 - sandbox type: `dev`
 - filesystem adapter base path: current repository working directory
 - auth mode: dual static keys for alpha (`agent_api_key`, `admin_api_key`)
+- approval webhooks: optional, with delivery tracking and manual retry support
 
 These defaults are intentionally optimized for local bring-up, not for final production deployment.
 
@@ -250,11 +251,19 @@ constrail auth-status --json
 ```bash
 constrail approval-list --limit 10
 constrail approval-list --limit 10 --json
-constrail approval-show <approval_id>
+constrail approval-show <approval_id> --json
 constrail approval-approve <approval_id> --approver tmfpretty --comment "approved"
 constrail approval-deny <approval_id> --approver tmfpretty --comment "denied"
+constrail approval-retry-webhook <approval_id> --json
 constrail approval-replay <approval_id> --json
 ```
+
+`approval-show` and `approval-list --json` now expose delivery visibility, including:
+- `webhook_delivery_status`
+- `webhook_delivery_attempts`
+- `webhook_last_attempt_at`
+- `webhook_last_response_code`
+- `webhook_last_error`
 
 ### Capability lifecycle management
 
@@ -286,6 +295,8 @@ constrail sandbox-list --limit 10 --json
 - `POST /v1/approval/{approval_id}/approve`
 - `POST /v1/approval/{approval_id}/deny`
 - `POST /v1/approval/{approval_id}/replay`
+
+Approval responses include delivery visibility for webhook-backed operator notifications.
 
 ### Admin inspection
 - `GET /v1/admin/audit`
@@ -322,7 +333,7 @@ Current test coverage includes:
 - fail-closed behavior
 - broker dispatch
 - filesystem adapter behavior
-- approval request lifecycle and auth boundaries
+- approval request lifecycle, webhook delivery tracking, and auth boundaries
 - capability constraints and lifecycle management
 - exec adapter sandbox behavior
 - sandbox executor selection and replay flow

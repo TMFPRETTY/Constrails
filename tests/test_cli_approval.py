@@ -1,7 +1,9 @@
 import asyncio
+from urllib.error import URLError
 from click.testing import CliRunner
 
 from constrail.cli import cli
+from constrail.config import settings
 from constrail.kernel_v2 import ConstrailKernel
 from constrail.models import ActionRequest, AgentIdentity, ToolCall
 
@@ -14,7 +16,14 @@ def run(coro):
 
 
 
-def test_approval_management_commands():
+def test_approval_management_commands(monkeypatch):
+    monkeypatch.setattr(settings, 'approval_webhook_url', 'https://example.test/webhook')
+
+    def _boom(req, timeout=5):
+        raise URLError('retry me')
+
+    monkeypatch.setattr('constrail.approval.urlopen', _boom)
+
     kernel = ConstrailKernel()
     req = ActionRequest(
         agent=AgentIdentity(agent_id='dev-agent', trust_level=0.8),
@@ -28,10 +37,18 @@ def test_approval_management_commands():
     assert list_result.exit_code == 0
     assert 'Approval Requests' in list_result.output
 
+    list_json_result = runner.invoke(cli, ['approval-list', '--limit', '5', '--json'])
+    assert list_json_result.exit_code == 0
+    assert '"webhook_delivery_status"' in list_json_result.output
+
     show_result = runner.invoke(cli, ['approval-show', approval_id, '--json'])
     assert show_result.exit_code == 0
     assert approval_id in show_result.output
-    assert '"webhook_delivery_status"' in show_result.output
+    assert '"webhook_delivery_status": "failed"' in show_result.output
+
+    retry_result = runner.invoke(cli, ['approval-retry-webhook', approval_id, '--json'])
+    assert retry_result.exit_code == 0
+    assert '"webhook_delivery_attempts": 2' in retry_result.output
 
     approve_result = runner.invoke(
         cli,
@@ -50,3 +67,5 @@ def test_approval_management_commands():
     )
     assert deny_result.exit_code == 0
     assert 'Denied' in deny_result.output
+
+    monkeypatch.setattr(settings, 'approval_webhook_url', None)

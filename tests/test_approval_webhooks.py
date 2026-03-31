@@ -41,13 +41,18 @@ def test_webhook_delivery_success(monkeypatch):
 
 
 
-def test_webhook_delivery_failure(monkeypatch):
+def test_webhook_delivery_failure_and_retry(monkeypatch):
     monkeypatch.setattr(settings, 'approval_webhook_url', 'https://example.test/webhook')
 
-    def _boom(req, timeout=5):
-        raise URLError('network down')
+    attempts = {'count': 0}
 
-    monkeypatch.setattr('constrail.approval.urlopen', _boom)
+    def _flaky(req, timeout=5):
+        attempts['count'] += 1
+        if attempts['count'] == 1:
+            raise URLError('network down')
+        return _SuccessResponse(status=202)
+
+    monkeypatch.setattr('constrail.approval.urlopen', _flaky)
 
     service = ApprovalService()
     approval = service.create_request(
@@ -64,5 +69,12 @@ def test_webhook_delivery_failure(monkeypatch):
     assert approval.webhook_delivery_attempts == 1
     assert approval.webhook_last_response_code is None
     assert 'network down' in approval.webhook_last_error
+
+    retried = service.retry_webhook(approval.approval_id)
+    assert retried is not None
+    assert retried.webhook_delivery_status == 'delivered'
+    assert retried.webhook_delivery_attempts == 2
+    assert retried.webhook_last_response_code == 202
+    assert retried.webhook_last_error is None
 
     monkeypatch.setattr(settings, 'approval_webhook_url', None)
