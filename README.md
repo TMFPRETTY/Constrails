@@ -29,7 +29,7 @@ Available today:
 - policy evaluation with built-in fallback when OPA is unavailable
 - expanded starter OPA policy bundle plus OPA-response contract tests and local/CI compose smoke coverage
 - tool broker with filesystem, HTTP, and exec adapters
-- approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, attempt exhaustion tracking, an approval webhook outbox model, and optional in-process auto-drain controls
+- approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, attempt exhaustion tracking, an approval webhook outbox model, optional in-process auto-drain controls, and a bounded worker-loop command
 - local SQLite-backed audit, approval, sandbox execution, token revocation, and capability persistence for development
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
@@ -45,7 +45,7 @@ Available today:
 
 Constrails has moved well beyond a sketch, but these areas are still maturing toward a more production-grade posture:
 
-- **Approval operations:** an outbox model, drain command, and optional in-process auto-drain now exist, but this is still not a full asynchronous durable queue/outbox service.
+- **Approval operations:** an outbox model, drain command, optional in-process auto-drain, and a bounded worker-loop command now exist, but this is still not a full standalone asynchronous worker/service.
 - **Sandbox validation breadth:** Docker posture and local smoke coverage are stronger, but broader validation across more deployment targets is still warranted.
 - **Identity/auth lifecycle:** bearer tokens now support issuer/audience validation, revocation, and a basic rotation bridge, but stronger issuance and key-management lifecycle controls can still mature further.
 - **OPA live integration depth:** local and CI live-path smoke coverage exists, but richer live-policy assertions across more decision classes can still deepen confidence.
@@ -77,7 +77,7 @@ Core components in this repository:
 - `src/constrail/capability_store.py` - capability manifest persistence and lifecycle helpers
 - `src/constrail/risk/risk_engine.py` - heuristic risk scoring
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
-- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, retry, exhaustion, outbox helpers, and optional in-process auto-drain hooks
+- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, retry, exhaustion, outbox helpers, optional auto-drain hooks, and a worker-loop entrypoint
 - `src/constrail/auth.py` - alpha auth principal, static-key auth, bearer-token helpers, revocation support, and basic secret-rotation bridging
 - `src/constrail/sandbox.py` - sandbox executor abstraction, posture reporting, and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
@@ -177,7 +177,7 @@ Current development defaults:
 - sandbox mode: `development`
 - filesystem adapter base path: current repository working directory
 - auth mode: legacy static keys plus a stricter alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
-- approval webhooks: optional, with delivery tracking, retry support, outbox state, auto-drain controls, and attempt limits
+- approval webhooks: optional, with delivery tracking, retry support, outbox state, auto-drain controls, worker-loop support, and attempt limits
 
 These defaults are intentionally optimized for local bring-up, not for final production deployment.
 
@@ -290,6 +290,7 @@ constrail approval-list --limit 10 --json
 constrail approval-summary --json
 constrail approval-outbox-summary --json
 constrail approval-drain-outbox --limit 20 --json
+constrail approval-run-worker --cycles 3 --sleep-seconds 1 --limit 20 --json
 constrail approval-show <approval_id> --json
 constrail approval-approve <approval_id> --approver tmfpretty --comment "approved"
 constrail approval-deny <approval_id> --approver tmfpretty --comment "denied"
@@ -374,7 +375,7 @@ Current test coverage includes:
 - fail-closed behavior
 - broker dispatch
 - filesystem adapter behavior
-- approval request lifecycle, webhook delivery tracking, retry, exhaustion behavior, outbox operator flows, and optional auto-drain controls
+- approval request lifecycle, webhook delivery tracking, retry, exhaustion behavior, outbox operator flows, optional auto-drain controls, and worker-loop behavior
 - capability constraints and lifecycle management
 - exec adapter sandbox behavior
 - sandbox executor selection, posture reporting, and replay flow
