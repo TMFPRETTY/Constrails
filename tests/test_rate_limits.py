@@ -2,6 +2,7 @@ import asyncio
 import time
 
 from constrail.config import settings
+from constrail.database import QuotaEventModel, SessionLocal, init_db
 from constrail.kernel_v2 import ConstrailKernel
 from constrail.models import ActionRequest, AgentIdentity, Decision, ToolCall
 
@@ -24,6 +25,14 @@ def run(coro):
 
 
 def test_rate_limit_blocks_bursting_agent():
+    init_db()
+    db = SessionLocal()
+    try:
+        db.query(QuotaEventModel).filter(QuotaEventModel.agent_id == 'dev-agent').delete()
+        db.commit()
+    finally:
+        db.close()
+
     kernel = ConstrailKernel()
     with (
         TempSetting('anomaly_detection_enabled', True),

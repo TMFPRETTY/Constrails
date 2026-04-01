@@ -123,6 +123,17 @@ class ApprovalWebhookOutboxModel(Base):
     delivered_at = Column(DateTime, nullable=True)
 
 
+class QuotaEventModel(Base):
+    __tablename__ = "quota_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agent_id = Column(String, nullable=False, index=True)
+    tenant_id = Column(String, nullable=True, index=True)
+    tool = Column(String, nullable=False, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+
 class RevokedTokenModel(Base):
     __tablename__ = "revoked_tokens"
 

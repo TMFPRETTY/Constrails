@@ -26,6 +26,7 @@ from .models import ActionRequest, ActionResponse, Decision, RiskLevel, ToolResu
 from .policy.policy_engine import get_policy_engine
 from .risk.risk_engine import get_risk_engine
 from .sandbox_records import get_sandbox_execution_service
+from .rate_limits import get_rate_limit_service
 from .tool_broker.broker import ExecutionContext
 
 logger = logging.getLogger(__name__)
@@ -40,8 +41,8 @@ class ConstrailKernel:
         self.capability_manager = get_capability_manager()
         self.approval_service = get_approval_service()
         self.sandbox_execution_service = get_sandbox_execution_service()
+        self.rate_limit_service = get_rate_limit_service()
         self.tool_broker = None
-        self._rate_limit_state: dict[str, list[float]] = {}
 
     async def process(self, request: ActionRequest) -> ActionResponse:
         request_id = str(uuid.uuid4())
@@ -71,7 +72,7 @@ class ConstrailKernel:
         final_decision = self._determine_final_decision(
             request, policy_evaluation.decision, risk_assessment.level
         )
-        if self._rate_limit_exceeded(request.agent.agent_id):
+        if self._rate_limit_exceeded(request):
             final_decision = Decision.QUARANTINE
             duration_ms = int((time.time() - start_time) * 1000)
             await self._log_audit(
@@ -190,15 +191,16 @@ class ConstrailKernel:
             sandbox_id=sandbox_id,
         )
 
-    def _rate_limit_exceeded(self, agent_id: str) -> bool:
+    def _rate_limit_exceeded(self, request: ActionRequest) -> bool:
         if not settings.anomaly_detection_enabled:
             return False
-        now = time.time()
-        window_start = now - settings.rate_limit_window_seconds
-        timestamps = [ts for ts in self._rate_limit_state.get(agent_id, []) if ts >= window_start]
-        timestamps.append(now)
-        self._rate_limit_state[agent_id] = timestamps
-        return len(timestamps) > settings.anomaly_burst_threshold
+        result = self.rate_limit_service.record_and_check(
+            agent_id=request.agent.agent_id,
+            tenant_id=request.agent.tenant_id,
+            tool=request.call.tool,
+            event_type='action',
+        )
+        return result['blocked']
 
     def _determine_final_decision(
         self,

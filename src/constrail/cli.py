@@ -21,6 +21,7 @@ from .auth import get_auth_service
 from .capability_store import get_capability_store
 from .config import settings
 from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
+from .rate_limits import get_rate_limit_service
 from .kernel_v2 import ConstrailKernel
 from .sandbox import get_sandbox_executor, reset_sandbox_executor, sandbox_health
 
@@ -276,6 +277,19 @@ def sandbox_list_command(limit: int, as_json: bool):
         console.print(table)
     finally:
         db.close()
+
+
+@cli.command("quota-summary", help="Show persisted quota/rate-limit event summary.")
+@click.option("--agent", "agent_id", default=None, help="Filter by agent ID.")
+@click.option("--window-seconds", default=None, type=int, help="Optional recent window filter.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def quota_summary_command(agent_id: str | None, window_seconds: int | None, as_json: bool):
+    init_db()
+    payload = get_rate_limit_service().summary(agent_id=agent_id, limit_seconds=window_seconds)
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
 
 
 @cli.command("capability-list", help="List stored capability manifests.")
