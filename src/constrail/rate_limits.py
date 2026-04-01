@@ -56,20 +56,30 @@ class RateLimitService:
         finally:
             db.close()
 
-    def summary(self, *, agent_id: Optional[str] = None, limit_seconds: Optional[int] = None) -> dict:
+    def summary(self, *, agent_id: Optional[str] = None, tenant_id: Optional[str] = None, limit_seconds: Optional[int] = None) -> dict:
         db = SessionLocal()
         try:
             query = db.query(QuotaEventModel)
             if agent_id:
                 query = query.filter(QuotaEventModel.agent_id == agent_id)
+            if tenant_id:
+                query = query.filter(QuotaEventModel.tenant_id == tenant_id)
             if limit_seconds:
                 window_start = datetime.utcnow() - timedelta(seconds=limit_seconds)
                 query = query.filter(QuotaEventModel.created_at >= window_start)
             rows = query.all()
+            per_tool = {}
+            per_tenant = {}
+            for row in rows:
+                per_tool[row.tool] = per_tool.get(row.tool, 0) + 1
+                key = row.tenant_id or 'default'
+                per_tenant[key] = per_tenant.get(key, 0) + 1
             return {
                 'total_events': len(rows),
                 'agents': sorted({row.agent_id for row in rows}),
                 'tools': sorted({row.tool for row in rows}),
+                'per_tool': per_tool,
+                'per_tenant': per_tenant,
             }
         finally:
             db.close()

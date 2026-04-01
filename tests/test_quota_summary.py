@@ -13,7 +13,9 @@ def test_quota_summary_json_command():
     service = get_rate_limit_service()
     service.record_and_check(agent_id='dev-agent', tenant_id='default', tool='read_file')
 
-    result = runner.invoke(cli, ['quota-summary', '--json'])
+    result = runner.invoke(cli, ['quota-summary', '--tenant', 'default', '--json'])
     assert result.exit_code == 0
     assert '"total_events"' in result.output
     assert '"dev-agent"' in result.output
+    assert '"per_tool"' in result.output
+    assert '"per_tenant"' in result.output

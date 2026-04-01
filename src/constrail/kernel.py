@@ -15,6 +15,7 @@ from .auth import AuthPrincipal, get_auth_service
 from .capability_store import get_capability_store
 from .config import settings
 from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, init_db
+from .rate_limits import get_rate_limit_service
 from .kernel_v2 import get_kernel
 from .models import ActionRequest, ActionResponse
 
@@ -266,6 +267,20 @@ async def get_sandbox_execution(sandbox_id: str, principal: AuthPrincipal = Depe
         return SandboxExecutionResponse.from_db(row)
     finally:
         db.close()
+
+
+@app.get('/v1/admin/quotas')
+async def quota_summary(
+    agent_id: str | None = None,
+    tenant_id: str | None = None,
+    window_seconds: int | None = None,
+    principal: AuthPrincipal = Depends(authenticate_admin_request),
+):
+    ensure_runtime_ready()
+    enforce_admin_agent_scope(principal, agent_id)
+    if principal.tenant_id and tenant_id and tenant_id != principal.tenant_id:
+        raise HTTPException(status_code=403, detail='Requested tenant is outside admin scope')
+    return get_rate_limit_service().summary(agent_id=agent_id, tenant_id=tenant_id or principal.tenant_id, limit_seconds=window_seconds)
 
 
 @app.get('/v1/admin/capabilities', response_model=list[CapabilityManifestResponse])

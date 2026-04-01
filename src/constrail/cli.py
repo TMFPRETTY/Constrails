@@ -293,11 +293,12 @@ def sandbox_list_command(limit: int, as_json: bool):
 
 @cli.command("quota-summary", help="Show persisted quota/rate-limit event summary.")
 @click.option("--agent", "agent_id", default=None, help="Filter by agent ID.")
+@click.option("--tenant", "tenant_id", default=None, help="Filter by tenant ID.")
 @click.option("--window-seconds", default=None, type=int, help="Optional recent window filter.")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
-def quota_summary_command(agent_id: str | None, window_seconds: int | None, as_json: bool):
+def quota_summary_command(agent_id: str | None, tenant_id: str | None, window_seconds: int | None, as_json: bool):
     init_db()
-    payload = get_rate_limit_service().summary(agent_id=agent_id, limit_seconds=window_seconds)
+    payload = get_rate_limit_service().summary(agent_id=agent_id, tenant_id=tenant_id, limit_seconds=window_seconds)
     if as_json:
         click.echo(json.dumps(payload, indent=2))
         return
