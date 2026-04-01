@@ -291,6 +291,34 @@ def sandbox_list_command(limit: int, as_json: bool):
         db.close()
 
 
+@cli.command("quota-events", help="List persisted quota/rate-limit events.")
+@click.option("--agent", "agent_id", default=None, help="Filter by agent ID.")
+@click.option("--tenant", "tenant_id", default=None, help="Filter by tenant ID.")
+@click.option("--tool", default=None, help="Filter by tool name.")
+@click.option("--window-seconds", default=None, type=int, help="Optional recent window filter.")
+@click.option("--limit", default=50, type=int, help="Maximum events to return.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def quota_events_command(agent_id: str | None, tenant_id: str | None, tool: str | None, window_seconds: int | None, limit: int, as_json: bool):
+    init_db()
+    payload = get_rate_limit_service().list_events(agent_id=agent_id, tenant_id=tenant_id, tool=tool, limit_seconds=window_seconds, limit=limit)
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
+
+
+@cli.command("quota-prune", help="Prune old quota/rate-limit events.")
+@click.option("--older-than-seconds", required=True, type=int, help="Delete events older than this many seconds.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def quota_prune_command(older_than_seconds: int, as_json: bool):
+    init_db()
+    payload = get_rate_limit_service().prune_events(older_than_seconds=older_than_seconds)
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
+
+
 @cli.command("quota-summary", help="Show persisted quota/rate-limit event summary.")
 @click.option("--agent", "agent_id", default=None, help="Filter by agent ID.")
 @click.option("--tenant", "tenant_id", default=None, help="Filter by tenant ID.")

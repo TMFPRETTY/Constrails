@@ -86,6 +86,56 @@ class RateLimitService:
         finally:
             db.close()
 
+    def list_events(
+        self,
+        *,
+        agent_id: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+        tool: Optional[str] = None,
+        limit_seconds: Optional[int] = None,
+        limit: int = 50,
+    ) -> list[dict]:
+        db = SessionLocal()
+        try:
+            query = db.query(QuotaEventModel)
+            if agent_id:
+                query = query.filter(QuotaEventModel.agent_id == agent_id)
+            if tenant_id:
+                query = query.filter(QuotaEventModel.tenant_id == tenant_id)
+            if tool:
+                query = query.filter(QuotaEventModel.tool == tool)
+            if limit_seconds:
+                window_start = datetime.utcnow() - timedelta(seconds=limit_seconds)
+                query = query.filter(QuotaEventModel.created_at >= window_start)
+            rows = query.order_by(QuotaEventModel.created_at.desc()).limit(limit).all()
+            return [
+                {
+                    'id': row.id,
+                    'agent_id': row.agent_id,
+                    'tenant_id': row.tenant_id,
+                    'tool': row.tool,
+                    'event_type': row.event_type,
+                    'created_at': row.created_at.isoformat(),
+                }
+                for row in rows
+            ]
+        finally:
+            db.close()
+
+    def prune_events(self, *, older_than_seconds: int) -> dict:
+        db = SessionLocal()
+        try:
+            cutoff = datetime.utcnow() - timedelta(seconds=older_than_seconds)
+            deleted = (
+                db.query(QuotaEventModel)
+                .filter(QuotaEventModel.created_at < cutoff)
+                .delete()
+            )
+            db.commit()
+            return {'deleted': deleted, 'older_than_seconds': older_than_seconds}
+        finally:
+            db.close()
+
     def summary(self, *, agent_id: Optional[str] = None, tenant_id: Optional[str] = None, limit_seconds: Optional[int] = None) -> dict:
         db = SessionLocal()
         try:

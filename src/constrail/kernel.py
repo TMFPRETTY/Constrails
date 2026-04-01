@@ -269,6 +269,22 @@ async def get_sandbox_execution(sandbox_id: str, principal: AuthPrincipal = Depe
         db.close()
 
 
+@app.get('/v1/admin/quota-events')
+async def quota_events(
+    agent_id: str | None = None,
+    tenant_id: str | None = None,
+    tool: str | None = None,
+    window_seconds: int | None = None,
+    limit: int = 50,
+    principal: AuthPrincipal = Depends(authenticate_admin_request),
+):
+    ensure_runtime_ready()
+    enforce_admin_agent_scope(principal, agent_id)
+    if principal.tenant_id and tenant_id and tenant_id != principal.tenant_id:
+        raise HTTPException(status_code=403, detail='Requested tenant is outside admin scope')
+    return get_rate_limit_service().list_events(agent_id=agent_id, tenant_id=tenant_id or principal.tenant_id, tool=tool, limit_seconds=window_seconds, limit=limit)
+
+
 @app.get('/v1/admin/quotas')
 async def quota_summary(
     agent_id: str | None = None,
