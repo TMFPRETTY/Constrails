@@ -24,6 +24,7 @@ from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, ini
 from .rate_limits import get_rate_limit_service
 from .kernel_v2 import ConstrailKernel
 from .sandbox import get_sandbox_executor, reset_sandbox_executor, sandbox_health
+from .audit_verify import get_audit_verifier
 
 console = Console()
 
@@ -226,6 +227,17 @@ def sandbox_validate_command(as_json: bool):
         console.print('[green]Sandbox posture looks production-ready.[/green]')
     else:
         console.print('[yellow]Sandbox posture still has warnings.[/yellow]')
+    console.print_json(json.dumps(payload))
+
+
+@cli.command("audit-verify", help="Verify audit hash-chain integrity.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def audit_verify_command(as_json: bool):
+    init_db()
+    payload = get_audit_verifier().verify()
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
     console.print_json(json.dumps(payload))
 
 
