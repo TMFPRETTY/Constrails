@@ -58,7 +58,7 @@ Replay should not depend only on approval ID. It should bind to more of the orig
 **Performance impact:** low-medium
 
 ### 3. Approval outbox is better, but not yet a full standalone service
-The current outbox, drain, auto-drain, and worker-loop command materially improve reliability, but this is still not a dedicated durable worker service.
+The current outbox, drain, auto-drain, signed delivery, and bounded worker mode with richer summaries/backoff materially improve reliability, but this is still not a dedicated durable worker service.
 
 **Recommended actions:**
 - standalone worker mode/service
@@ -69,7 +69,7 @@ The current outbox, drain, auto-drain, and worker-loop command materially improv
 **Performance impact:** medium
 
 ### 4. Token lifecycle has improved, but key management is still early
-Bearer auth now includes issuer/audience validation, revocation, and a basic secret rotation bridge. That is strong alpha progress, but not mature key management.
+Bearer auth now includes issuer/audience validation, revocation, key registry visibility, and a basic secret rotation bridge. That is strong alpha progress, but not mature key management.
 
 **Recommended actions:**
 - key IDs (`kid`)
@@ -81,7 +81,7 @@ Bearer auth now includes issuer/audience validation, revocation, and a basic sec
 **Performance impact:** low
 
 ### 5. Sandbox posture is much more inspectable, but not universally validated
-Sandbox posture checks are stronger and more explicit now, but Docker-based isolation should still be treated carefully.
+Sandbox posture checks are stronger and more explicit now, and strict posture enforcement exists, but Docker-based isolation should still be treated carefully.
 
 **Recommended actions:**
 - strict enforcement mode when posture checks fail
@@ -105,13 +105,16 @@ Sandbox posture checks are stronger and more explicit now, but Docker-based isol
 ### Strengths
 - approval and sandbox linkage exists
 - replay provenance exists
+- audit auth-correlation metadata exists
+- audit hash-chain verification now exists
+- quota event visibility now exists
 - audit surfaces are substantially better than an ungoverned system
 
 ### Remaining weaknesses
 - local SQLite is still easy to tamper with
 - append-only / signed audit chain is not yet default
-- more auth metadata should be recorded with events
-- stronger correlation between token ID, approval event, outbox item, and replay path would help investigations
+- stronger correlation between token ID, approval event, outbox item, and replay path would still help investigations further
+- quota/event retention policy is still early and not yet policy-rich by event class
 
 ## Performance-Aware Security Design Notes
 

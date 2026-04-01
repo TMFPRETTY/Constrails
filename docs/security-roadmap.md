@@ -22,6 +22,7 @@ Move Constrails from strong alpha governance tooling toward a more production-ha
 - Promote current worker-loop behavior into a more explicit long-running mode
 - Add retry/backoff strategy
 - Expose basic metrics or status summaries
+- Status: bounded worker mode now has richer idle/backoff summaries, but a dedicated standalone service/daemon model still remains
 
 ## Phase 2 - Identity maturity
 
@@ -54,6 +55,7 @@ Move Constrails from strong alpha governance tooling toward a more production-ha
 ### 9. Audit integrity improvements
 - append-only or signed event chain
 - stronger replay / outbox / token correlation metadata
+- Status: hash-chain groundwork and verification CLI now exist; signed checkpoints and stronger append-only guarantees remain
 
 ### 10. Approval/webhook authenticity
 - signed webhooks
@@ -69,6 +71,7 @@ Move Constrails from strong alpha governance tooling toward a more production-ha
 - per-agent and per-tenant rate limits
 - approval generation throttles
 - sandbox/exec resource controls beyond current posture checks
+- Status: durable quota events, summaries, scoped thresholds, enforcement modes, event inspection, and prune controls now exist; deeper per-event-class controls and longer-horizon policy tuning remain
 
 ## Guiding Principle
 

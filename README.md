@@ -2,7 +2,7 @@
 
 ![Alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-79%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-90%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -25,17 +25,17 @@ Available today:
 - canonical kernel path (`kernel_v2.py`) behind FastAPI (`kernel.py`)
 - capability-based allow/deny checks with tenant/namespace-aware manifest lookup
 - capability manifest persistence, versioning, activation/deactivation, mutation, and CLI lifecycle commands
-- heuristic risk scoring with bootstrap risk profiles, cross-request exfiltration chain heuristics, and basic burst-rate controls
+- heuristic risk scoring with bootstrap risk profiles, cross-request exfiltration chain heuristics, durable quota event tracking, scoped quota thresholds, quota enforcement modes, and burst-rate controls
 - policy evaluation with explicit degraded/strict availability modes when OPA is unavailable
 - expanded starter OPA policy bundle plus OPA-response contract tests and local/CI compose smoke coverage
 - tool broker with filesystem, HTTP, and exec adapters
-- approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, attempt exhaustion tracking, an approval webhook outbox model, optional in-process auto-drain controls, and a bounded worker-loop command
-- local SQLite-backed audit, approval, sandbox execution, token revocation, and capability persistence for development, with cross-dialect GUID handling for safer SQLite portability
+- approval request lifecycle, status model, replay flow, webhook delivery tracking, retry hooks, attempt exhaustion tracking, an approval webhook outbox model, optional in-process auto-drain controls, and a bounded worker mode with richer summaries/backoff behavior
+- local SQLite-backed audit, approval, sandbox execution, token revocation, capability, and quota-event persistence for development, with cross-dialect GUID handling for safer SQLite portability
 - path, domain, and command constraints in capability manifests
 - sandbox-first exec behavior with a development sandbox executor
 - Docker sandbox path hardened with clearer production-posture reporting and local compose smoke validation
 - a first-class `constrail` CLI entrypoint
-- read-only admin inspection endpoints for audit, sandbox, and capability history
+- read-only admin inspection endpoints for audit, sandbox, capability history, and quota visibility/event inspection
 - filtered admin queries and scoped admin semantics for operational workflows
 - basic admin/agent auth separation with legacy static keys plus a stricter bearer-token auth path with issuer/audience validation, token revocation, key registry visibility, and a basic secret-rotation bridge
 - deployment examples for Docker Compose + OPA sidecar flow, including a serialized local smoke script
@@ -45,11 +45,12 @@ Available today:
 
 Constrails has moved well beyond a sketch, but these areas are still maturing toward a more production-grade posture:
 
-- **Approval operations:** an outbox model, drain command, optional in-process auto-drain, and a bounded worker-loop command now exist, but this is still not a full standalone asynchronous worker/service.
+- **Approval operations:** an outbox model, drain command, optional in-process auto-drain, signed delivery, and a bounded worker mode with richer idle/backoff summaries now exist, but this is still not a full standalone asynchronous worker/service.
 - **Sandbox validation breadth:** Docker posture and local smoke coverage are stronger, but broader validation across more deployment targets is still warranted.
 - **Identity/auth lifecycle:** bearer tokens now support issuer/audience validation, revocation, and a basic rotation bridge, but stronger issuance and key-management lifecycle controls can still mature further.
 - **OPA live integration depth:** local and CI live-path smoke coverage exists, but richer live-policy assertions across more decision classes can still deepen confidence.
 - **Distribution ergonomics:** install and release flows are better than they were, but broader packaging/distribution polish is still possible.
+- **Storage/migrations:** SQLite development support is solid, but a more formal Postgres-first migration/upgrade story is still the next major production-readiness step.
 
 ## Why Constrails
 
@@ -75,14 +76,14 @@ Core components in this repository:
 - `src/constrail/tool_broker/broker.py` - tool dispatch and execution modes
 - `src/constrail/capability/manager.py` - capability manifest loading and checks
 - `src/constrail/capability_store.py` - capability manifest persistence and lifecycle helpers
-- `src/constrail/risk/risk_engine.py` - heuristic risk scoring, exfiltration-chain detection, and burst anomaly hooks
+- `src/constrail/risk/risk_engine.py` - heuristic risk scoring, exfiltration-chain detection, and quota/burst anomaly hooks
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
-- `src/constrail/approval.py` - approval persistence, status, webhook delivery tracking, retry, exhaustion, outbox helpers, optional auto-drain hooks, and a worker-loop entrypoint
+- `src/constrail/approval.py` - approval persistence, status, signed webhook delivery tracking, retry, exhaustion, outbox helpers, optional auto-drain hooks, and bounded worker-mode helpers
 - `src/constrail/auth.py` - alpha auth principal, static-key auth, bearer-token helpers, revocation support, key registry visibility, and secret-rotation bridging
 - `src/constrail/sandbox.py` - sandbox executor abstraction, posture reporting, and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
-- `src/constrail/database.py` - development database models, cross-dialect GUID persistence, and session management
-- `src/constrail/cli.py` - CLI entrypoint for local operations
+- `src/constrail/database.py` - development database models, cross-dialect GUID persistence, quota event storage, and session management
+- `src/constrail/cli.py` - CLI entrypoint for local operations, audit verification, and quota inspection/pruning
 
 ## Repository Layout
 
@@ -177,7 +178,8 @@ Current development defaults:
 - sandbox mode: `development`
 - filesystem adapter base path: current repository working directory
 - auth mode: legacy static keys plus a stricter alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
-- approval webhooks: optional, with delivery tracking, retry support, outbox state, auto-drain controls, worker-loop support, attempt limits, and HMAC signing
+- approval webhooks: optional, with delivery tracking, retry support, outbox state, auto-drain controls, bounded worker-mode support, attempt limits, and HMAC signing
+- quotas: persisted quota events, scoped thresholds, configurable enforcement mode, summary/event inspection, and prune controls
 
 These defaults are intentionally optimized for local bring-up, not for final production deployment.
 
@@ -271,6 +273,10 @@ constrail auth-mint-token --role agent --subject local-agent --tenant default --
 constrail auth-inspect-token <token> --json
 constrail auth-revoke-token <token> --json
 constrail auth-rotate-secret --json
+constrail audit-verify --json
+constrail quota-summary --json
+constrail quota-events --json
+constrail quota-prune --older-than-seconds 86400 --json
 ```
 
 `doctor --json` and `sandbox-validate --json` expose sandbox posture fields such as:
@@ -291,7 +297,7 @@ constrail approval-list --limit 10 --json
 constrail approval-summary --json
 constrail approval-outbox-summary --json
 constrail approval-drain-outbox --limit 20 --json
-constrail approval-run-worker --cycles 3 --sleep-seconds 1 --limit 20 --json
+constrail approval-run-worker --cycles 3 --sleep-seconds 1 --limit 20 --backoff-multiplier 2 --max-sleep-seconds 30 --json
 constrail approval-show <approval_id> --json
 constrail approval-approve <approval_id> --approver tmfpretty --comment "approved"
 constrail approval-deny <approval_id> --approver tmfpretty --comment "denied"
@@ -317,11 +323,15 @@ constrail capability-activate 2 --json
 constrail capability-deactivate 2
 ```
 
-### Audit and sandbox inspection
+### Audit, sandbox, and quota inspection
 
 ```bash
 constrail audit-list --limit 10 --json
+constrail audit-verify --json
 constrail sandbox-list --limit 10 --json
+constrail quota-summary --json
+constrail quota-events --limit 20 --json
+constrail quota-prune --older-than-seconds 86400 --json
 ```
 
 ## API Overview
@@ -347,6 +357,8 @@ Approval responses include delivery visibility for webhook-backed operator notif
 - `GET /v1/admin/sandbox`
 - `GET /v1/admin/sandbox/{sandbox_id}`
 - `GET /v1/admin/capabilities`
+- `GET /v1/admin/quotas`
+- `GET /v1/admin/quota-events`
 
 These endpoints expose read-only visibility into:
 - recent audit records
@@ -355,6 +367,7 @@ These endpoints expose read-only visibility into:
 - auth correlation metadata
 - audit hash-chain fields
 - sandbox execution history
+- quota summaries and raw quota event inspection
 - stored capability manifest records
 
 ## Bootstrap policy files
@@ -378,13 +391,13 @@ Current test coverage includes:
 - fail-closed behavior
 - broker dispatch
 - filesystem adapter behavior
-- approval request lifecycle, webhook delivery tracking, retry, exhaustion behavior, outbox operator flows, optional auto-drain controls, and worker-loop behavior
+- approval request lifecycle, signed webhook delivery tracking, retry, exhaustion behavior, outbox operator flows, optional auto-drain controls, and bounded worker-mode behavior
 - capability constraints and lifecycle management
 - exec adapter sandbox behavior
 - sandbox executor selection, posture reporting, and replay flow
 - audit and sandbox provenance linkage
 - audit auth-correlation metadata and hash-chain linkage
-- exfiltration-chain heuristics and basic burst-rate limiting
+- exfiltration-chain heuristics, durable quota tracking, scoped thresholds, quota enforcement modes, and quota inspection/pruning
 - admin inspection endpoints
 - CLI command surface and JSON output
 - policy engine fallback, explanation behavior, richer OPA-response contract coverage, and compose-based live OPA smoke coverage
