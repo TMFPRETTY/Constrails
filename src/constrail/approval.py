@@ -164,14 +164,49 @@ class ApprovalService:
             )
             processed = 0
             delivered = 0
+            failed = 0
             for row in rows:
                 processed += 1
                 ok = self._deliver_outbox_item(row.outbox_id)
                 if ok:
                     delivered += 1
-            return {'processed': processed, 'delivered': delivered}
+                else:
+                    failed += 1
+            return {'processed': processed, 'delivered': delivered, 'failed': failed, 'idle': processed == 0}
         finally:
             db.close()
+
+    def run_worker(self, *, cycles: int, sleep_seconds: float, limit: int, backoff_multiplier: float = 2.0, max_sleep_seconds: float = 30.0) -> dict:
+        total_processed = 0
+        total_delivered = 0
+        total_failed = 0
+        idle_cycles = 0
+        current_sleep = sleep_seconds
+        cycle_results = []
+
+        for cycle in range(cycles):
+            result = self.drain_outbox(limit=limit)
+            total_processed += result['processed']
+            total_delivered += result['delivered']
+            total_failed += result['failed']
+            cycle_results.append({'cycle': cycle + 1, **result, 'sleep_seconds': current_sleep})
+            if result['idle']:
+                idle_cycles += 1
+                current_sleep = min(max_sleep_seconds, current_sleep * backoff_multiplier if current_sleep > 0 else 0)
+            else:
+                current_sleep = sleep_seconds
+            if cycle < cycles - 1 and current_sleep > 0:
+                import time
+                time.sleep(current_sleep)
+
+        return {
+            'cycles': cycles,
+            'processed': total_processed,
+            'delivered': total_delivered,
+            'failed': total_failed,
+            'idle_cycles': idle_cycles,
+            'cycle_results': cycle_results,
+        }
 
     def outbox_summary(self) -> dict[str, int]:
         db = SessionLocal()
