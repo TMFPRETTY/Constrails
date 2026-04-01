@@ -81,3 +81,33 @@ def test_tool_threshold_blocks_exec_faster():
         assert first.decision == Decision.APPROVAL_REQUIRED
         assert second.decision == Decision.QUARANTINE
         assert 'tool threshold 1' in second.error
+
+
+def test_rate_limit_can_require_approval_instead_of_quarantine():
+    init_db()
+    db = SessionLocal()
+    try:
+        db.query(QuotaEventModel).filter(QuotaEventModel.agent_id == 'dev-agent').delete()
+        db.commit()
+    finally:
+        db.close()
+
+    kernel = ConstrailKernel()
+    with (
+        TempSetting('anomaly_detection_enabled', True),
+        TempSetting('anomaly_burst_threshold', 1),
+        TempSetting('rate_limit_tool_thresholds', '{}'),
+        TempSetting('rate_limit_tenant_thresholds', '{}'),
+        TempSetting('rate_limit_enforcement_mode', 'approval_required'),
+    ):
+        req = ActionRequest(
+            agent=AgentIdentity(agent_id='dev-agent', tenant_id='default', namespace='dev', trust_level=0.8),
+            call=ToolCall(tool='read_file', parameters={'path': 'README.md'}),
+            context={'goal': 'approval mode rate limit test'},
+        )
+        first = run(kernel.process(req))
+        second = run(kernel.process(req))
+
+        assert first.decision == Decision.ALLOW
+        assert second.decision == Decision.APPROVAL_REQUIRED
+        assert second.approval_id is not None

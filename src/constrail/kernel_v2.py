@@ -73,8 +73,78 @@ class ConstrailKernel:
             request, policy_evaluation.decision, risk_assessment.level
         )
         if self._rate_limit_exceeded(request):
+            mode = settings.rate_limit_enforcement_mode
             final_decision = Decision.QUARANTINE
+            if mode == 'approval_required':
+                final_decision = Decision.APPROVAL_REQUIRED
+            elif mode == 'sandbox':
+                final_decision = Decision.SANDBOX
+
             duration_ms = int((time.time() - start_time) * 1000)
+            if final_decision == Decision.APPROVAL_REQUIRED:
+                approval = self.approval_service.create_request(
+                    request_id=uuid.UUID(request_id),
+                    agent_id=request.agent.agent_id,
+                    tool=request.call.tool,
+                    parameters=request.call.parameters,
+                    risk_score=risk_assessment.score,
+                    risk_level=risk_assessment.level.value,
+                    policy_evaluation=policy_evaluation.model_dump(mode="json"),
+                )
+                approval_id = approval.approval_id
+                await self._log_audit(
+                    request,
+                    request_id,
+                    risk_assessment,
+                    policy_evaluation,
+                    final_decision,
+                    None,
+                    self._quota_error_message(request),
+                    None,
+                    duration_ms,
+                    approval_id=approval_id,
+                    approver_id=None,
+                    replayed_from_approval_id=None,
+                )
+                return ActionResponse(
+                    request_id=uuid.UUID(request_id),
+                    decision=Decision.APPROVAL_REQUIRED,
+                    result=None,
+                    error=self._quota_error_message(request),
+                    approval_id=approval_id,
+                    approval_url=f"/v1/approval/{approval_id}",
+                    sandbox_id=None,
+                )
+
+            if final_decision == Decision.SANDBOX:
+                execution_result = await self._execute_tool(
+                    request, final_decision, request_id, risk_assessment.level.value
+                )
+                sandbox_id = execution_result.metadata.get("sandbox_id") if execution_result else None
+                error = None if execution_result and execution_result.success else self._quota_error_message(request)
+                await self._log_audit(
+                    request,
+                    request_id,
+                    risk_assessment,
+                    policy_evaluation,
+                    final_decision,
+                    execution_result,
+                    error,
+                    sandbox_id,
+                    duration_ms,
+                    approval_id=None,
+                    approver_id=None,
+                    replayed_from_approval_id=None,
+                )
+                return ActionResponse(
+                    request_id=uuid.UUID(request_id),
+                    decision=Decision.SANDBOX,
+                    result=execution_result.model_dump() if execution_result else None,
+                    error=error,
+                    approval_id=None,
+                    sandbox_id=sandbox_id,
+                )
+
             await self._log_audit(
                 request,
                 request_id,
