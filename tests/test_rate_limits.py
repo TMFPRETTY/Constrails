@@ -37,6 +37,8 @@ def test_rate_limit_blocks_bursting_agent():
     with (
         TempSetting('anomaly_detection_enabled', True),
         TempSetting('anomaly_burst_threshold', 2),
+        TempSetting('rate_limit_tool_thresholds', '{}'),
+        TempSetting('rate_limit_tenant_thresholds', '{}'),
     ):
         req = ActionRequest(
             agent=AgentIdentity(agent_id='dev-agent', tenant_id='default', namespace='dev', trust_level=0.8),
@@ -50,4 +52,32 @@ def test_rate_limit_blocks_bursting_agent():
         assert first.decision == Decision.ALLOW
         assert second.decision == Decision.ALLOW
         assert third.decision == Decision.QUARANTINE
-        assert third.error == 'Rate limit exceeded'
+        assert 'Rate limit exceeded' in third.error
+
+
+def test_tool_threshold_blocks_exec_faster():
+    init_db()
+    db = SessionLocal()
+    try:
+        db.query(QuotaEventModel).filter(QuotaEventModel.agent_id == 'dev-agent').delete()
+        db.commit()
+    finally:
+        db.close()
+
+    kernel = ConstrailKernel()
+    with (
+        TempSetting('anomaly_detection_enabled', True),
+        TempSetting('anomaly_burst_threshold', 100),
+        TempSetting('rate_limit_tool_thresholds', '{"exec": 1}'),
+    ):
+        req = ActionRequest(
+            agent=AgentIdentity(agent_id='dev-agent', tenant_id='default', namespace='dev', trust_level=0.8),
+            call=ToolCall(tool='exec', parameters={'command': 'echo hi'}),
+            context={'goal': 'tool threshold test'},
+        )
+        first = run(kernel.process(req))
+        second = run(kernel.process(req))
+
+        assert first.decision == Decision.APPROVAL_REQUIRED
+        assert second.decision == Decision.QUARANTINE
+        assert 'tool threshold 1' in second.error

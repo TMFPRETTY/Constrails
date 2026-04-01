@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     anomaly_burst_threshold: int = 100
     anomaly_new_tool_alert: bool = True
     rate_limit_window_seconds: int = 60
+    rate_limit_tool_thresholds: str = '{}'
+    rate_limit_tenant_thresholds: str = '{}'
     exfiltration_lookback_limit: int = 20
     exfiltration_read_then_network_enabled: bool = True
 

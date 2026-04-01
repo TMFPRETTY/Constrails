@@ -82,7 +82,7 @@ class ConstrailKernel:
                 policy_evaluation,
                 final_decision,
                 None,
-                'Rate limit exceeded',
+                self._quota_error_message(request),
                 None,
                 duration_ms,
                 approval_id=None,
@@ -93,7 +93,7 @@ class ConstrailKernel:
                 request_id=uuid.UUID(request_id),
                 decision=Decision.QUARANTINE,
                 result=None,
-                error='Rate limit exceeded',
+                error=self._quota_error_message(request),
                 approval_id=None,
                 sandbox_id=None,
             )
@@ -200,7 +200,17 @@ class ConstrailKernel:
             tool=request.call.tool,
             event_type='action',
         )
+        request.context['quota'] = result
         return result['blocked']
+
+    def _quota_error_message(self, request: ActionRequest) -> str:
+        quota = request.context.get('quota', {}) if isinstance(request.context, dict) else {}
+        if not quota:
+            return 'Rate limit exceeded'
+        return (
+            f"Rate limit exceeded ({quota.get('threshold_scope')} threshold {quota.get('effective_threshold')}, "
+            f"agent_count={quota.get('agent_count')}, tool_count={quota.get('tool_count')})"
+        )
 
     def _determine_final_decision(
         self,

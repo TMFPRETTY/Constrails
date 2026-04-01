@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -8,6 +9,18 @@ from .database import QuotaEventModel, SessionLocal
 
 
 class RateLimitService:
+    def _tool_thresholds(self) -> dict:
+        try:
+            return json.loads(settings.rate_limit_tool_thresholds or '{}')
+        except Exception:
+            return {}
+
+    def _tenant_thresholds(self) -> dict:
+        try:
+            return json.loads(settings.rate_limit_tenant_thresholds or '{}')
+        except Exception:
+            return {}
+
     def record_and_check(
         self,
         *,
@@ -43,6 +56,19 @@ class RateLimitService:
                 .filter(QuotaEventModel.created_at >= window_start)
                 .count()
             )
+            tool_threshold = self._tool_thresholds().get(tool)
+            tenant_threshold = self._tenant_thresholds().get(tenant_id) if tenant_id else None
+            effective_threshold = tenant_threshold if tenant_threshold is not None else tool_threshold if tool_threshold is not None else settings.anomaly_burst_threshold
+            blocked = False
+            threshold_scope = 'default'
+            if tenant_threshold is not None:
+                blocked = scoped_count > tenant_threshold
+                threshold_scope = 'tenant'
+            elif tool_threshold is not None:
+                blocked = tool_count > tool_threshold
+                threshold_scope = 'tool'
+            else:
+                blocked = scoped_count > settings.anomaly_burst_threshold
             return {
                 'agent_id': agent_id,
                 'tenant_id': tenant_id,
@@ -51,7 +77,11 @@ class RateLimitService:
                 'window_seconds': settings.rate_limit_window_seconds,
                 'agent_count': scoped_count,
                 'tool_count': tool_count,
-                'blocked': scoped_count > settings.anomaly_burst_threshold,
+                'blocked': blocked,
+                'effective_threshold': effective_threshold,
+                'threshold_scope': threshold_scope,
+                'tool_threshold': tool_threshold,
+                'tenant_threshold': tenant_threshold,
             }
         finally:
             db.close()
