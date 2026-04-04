@@ -18,6 +18,7 @@ from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, ini
 from .rate_limits import get_rate_limit_service
 from .kernel_v2 import get_kernel
 from .models import ActionRequest, ActionResponse
+from .metrics import get_metrics_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +298,12 @@ async def quota_summary(
     if principal.tenant_id and tenant_id and tenant_id != principal.tenant_id:
         raise HTTPException(status_code=403, detail='Requested tenant is outside admin scope')
     return get_rate_limit_service().summary(agent_id=agent_id, tenant_id=tenant_id or principal.tenant_id, limit_seconds=window_seconds)
+
+
+@app.get('/v1/admin/metrics')
+async def admin_metrics(principal: AuthPrincipal = Depends(authenticate_admin_request)):
+    ensure_runtime_ready()
+    return get_metrics_snapshot()
 
 
 @app.get('/v1/admin/capabilities', response_model=list[CapabilityManifestResponse])
