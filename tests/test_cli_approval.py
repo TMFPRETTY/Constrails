@@ -55,6 +55,21 @@ def test_approval_management_commands(monkeypatch):
     assert '"cycles": 2' in worker_result.output
     assert '"cycle_results"' in worker_result.output
 
+    serve_result = runner.invoke(
+        cli,
+        [
+            'approval-worker-serve',
+            '--sleep-seconds', '0',
+            '--limit', '5',
+            '--backoff-multiplier', '2',
+            '--max-sleep-seconds', '1',
+            '--max-cycles', '2',
+        ],
+    )
+    assert serve_result.exit_code == 0
+    assert '"cycle": 1' in serve_result.output
+    assert '"cycle": 2' in serve_result.output
+
     list_json_result = runner.invoke(cli, ['approval-list', '--limit', '5', '--json'])
     assert list_json_result.exit_code == 0
     assert '"webhook_delivery_status"' in list_json_result.output

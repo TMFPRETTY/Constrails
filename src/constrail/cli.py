@@ -554,6 +554,45 @@ def approval_run_worker_command(cycles: int, sleep_seconds: float, limit: int, b
     console.print_json(json.dumps(totals))
 
 
+@cli.command("approval-worker-serve", help="Run the approval outbox worker as a long-running service.")
+@click.option("--sleep-seconds", default=1.0, type=float, help="Base sleep between cycles.")
+@click.option("--limit", default=20, type=int, help="Maximum outbox items to process per cycle.")
+@click.option("--backoff-multiplier", default=2.0, type=float, help="Multiplier applied after idle cycles.")
+@click.option("--max-sleep-seconds", default=30.0, type=float, help="Maximum backoff sleep between cycles.")
+@click.option("--max-cycles", default=None, type=int, help="Optional max cycles (for testing).")
+def approval_worker_serve_command(sleep_seconds: float, limit: int, backoff_multiplier: float, max_sleep_seconds: float, max_cycles: int | None):
+    init_db()
+    service = get_approval_service()
+    cycle = 0
+    idle_streak = 0
+    current_sleep = sleep_seconds
+    console.print("[green]Starting approval worker service. Press Ctrl+C to stop.[/green]")
+    try:
+        while max_cycles is None or cycle < max_cycles:
+            result = service.drain_outbox(limit=limit)
+            cycle += 1
+            idle = result['idle']
+            summary = {
+                'cycle': cycle,
+                'processed': result['processed'],
+                'delivered': result['delivered'],
+                'failed': result['failed'],
+                'idle': idle,
+                'sleep_seconds': round(current_sleep, 2),
+            }
+            console.print_json(json.dumps(summary))
+            if idle:
+                idle_streak += 1
+                current_sleep = min(max_sleep_seconds, current_sleep * backoff_multiplier if current_sleep else 0)
+            else:
+                idle_streak = 0
+                current_sleep = sleep_seconds
+            if current_sleep > 0:
+                time.sleep(current_sleep)
+    except KeyboardInterrupt:
+        console.print("[yellow]Approval worker service stopped.[/yellow]")
+
+
 @cli.command("approval-show", help="Show a single approval request.")
 @click.argument("approval_id")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
