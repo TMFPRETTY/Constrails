@@ -7,6 +7,7 @@ import logging
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 
 from .admin_models import AuditRecordResponse, CapabilityManifestResponse, SandboxExecutionResponse
 from .approval import get_approval_service
@@ -18,7 +19,7 @@ from .database import AuditRecordModel, SandboxExecutionModel, SessionLocal, ini
 from .rate_limits import get_rate_limit_service
 from .kernel_v2 import get_kernel
 from .models import ActionRequest, ActionResponse
-from .metrics import get_metrics_snapshot
+from .metrics import get_metrics_snapshot, render_prometheus_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -304,6 +305,12 @@ async def quota_summary(
 async def admin_metrics(principal: AuthPrincipal = Depends(authenticate_admin_request)):
     ensure_runtime_ready()
     return get_metrics_snapshot()
+
+
+@app.get('/metrics', response_class=PlainTextResponse)
+async def prometheus_metrics(principal: AuthPrincipal = Depends(authenticate_admin_request)):
+    ensure_runtime_ready()
+    return render_prometheus_metrics()
 
 
 @app.get('/v1/admin/capabilities', response_model=list[CapabilityManifestResponse])
