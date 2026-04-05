@@ -1,11 +1,11 @@
 # Constrails
 
-![Alpha](https://img.shields.io/badge/status-alpha-orange)
+![Beta](https://img.shields.io/badge/status-beta-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Constrails is a **beta-candidate Agent Safety System**: an external runtime governance and containment layer for AI agents.
+Constrails is a **beta Agent Safety System**: an external runtime governance and containment layer for AI agents.
 
 Instead of trusting an agent to self-regulate, Constrails routes meaningful actions through a safety kernel that can:
 
@@ -79,7 +79,7 @@ Core components in this repository:
 - `src/constrail/risk/risk_engine.py` - heuristic risk scoring, exfiltration-chain detection, and quota/burst anomaly hooks
 - `src/constrail/policy/policy_engine.py` - OPA integration with built-in fallback
 - `src/constrail/approval.py` - approval persistence, status, signed webhook delivery tracking, retry, exhaustion, outbox helpers, optional auto-drain hooks, and bounded worker-mode helpers
-- `src/constrail/auth.py` - alpha auth principal, static-key auth, bearer-token helpers, revocation support, key registry visibility, and secret-rotation bridging
+- `src/constrail/auth.py` - auth principal model, static-key auth, bearer-token helpers, revocation support, key registry visibility, and secret-rotation bridging
 - `src/constrail/sandbox.py` - sandbox executor abstraction, posture reporting, and implementations
 - `src/constrail/sandbox_records.py` - sandbox execution persistence helpers
 - `src/constrail/database.py` - development database models, cross-dialect GUID persistence, quota event storage, and session management
@@ -150,13 +150,13 @@ python -m constrail.cli --help
 A basic application image can be built from the included Dockerfile:
 
 ```bash
-docker build -t constrails:alpha .
+docker build -t constrails:beta .
 ```
 
 Run it:
 
 ```bash
-docker run --rm -p 8000:8000 constrails:alpha
+docker run --rm -p 8000:8000 constrails:beta
 ```
 
 ## Configuration
@@ -177,7 +177,7 @@ Current development defaults:
 - sandbox type: `dev`
 - sandbox mode: `development`
 - filesystem adapter base path: current repository working directory
-- auth mode: legacy static keys plus a stricter alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
+- auth mode: legacy static keys plus a stricter bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
 - approval webhooks: optional, with delivery tracking, retry support, outbox state, auto-drain controls, bounded worker-mode support, attempt limits, and HMAC signing
 - quotas: persisted quota events, scoped thresholds, configurable enforcement mode, summary/event inspection, and prune controls
 - observability: admin metrics snapshot, Prometheus-style `/metrics`, and audit checkpoint/export summaries
@@ -265,7 +265,7 @@ constrail auth-status --json
 constrail auth-keys --json
 ```
 
-Agent and admin requests can still use `X-API-Key`, and alpha bearer tokens are also supported via `Authorization: Bearer <token>`.
+Agent and admin requests can still use `X-API-Key`, and bearer tokens are also supported via `Authorization: Bearer <token>`.
 
 ### Local bearer token workflows
 
@@ -433,7 +433,7 @@ See `RELEASE.md` and `.github/release-checklist.md` for release workflow guidanc
 
 ## Safety Note
 
-Current development defaults are intentionally permissive enough to enable local bring-up. Do not mistake the dev SQLite path, local filesystem base path, fallback policy mode, or alpha bearer/static auth paths for the intended final production deployment posture.
+Current development defaults are intentionally permissive enough to enable local bring-up. Do not mistake the dev SQLite path, local filesystem base path, fallback policy mode, or dev bearer/static auth paths for the intended final production deployment posture.
 
 ## License
 

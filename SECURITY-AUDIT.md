@@ -1,7 +1,7 @@
 # Constrails Security Audit
 
 _Date:_ 2026-03-31  
-_Status:_ alpha security sweep  
+_Status:_ beta security sweep  
 _Scope:_ full-system adversarial review of identity, authorization, kernel lifecycle, tool brokering, sandboxing, policy evaluation, approval workflows, auditability, tenant isolation, API/CLI surfaces, and delivery operations.
 
 ## Executive Summary
@@ -69,7 +69,7 @@ The current outbox, drain, auto-drain, signed delivery, and bounded worker mode 
 **Performance impact:** medium
 
 ### 4. Token lifecycle has improved, but key management is still early
-Bearer auth now includes issuer/audience validation, revocation, key registry visibility, and a basic secret rotation bridge. That is strong alpha progress, but not mature key management.
+Bearer auth now includes issuer/audience validation, revocation, key registry visibility, and a basic secret rotation bridge. That is solid beta-stage progress, but not mature key management.
 
 **Recommended actions:**
 - key IDs (`kid`)

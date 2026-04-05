@@ -2,7 +2,7 @@
 
 All notable changes to Constrails will be documented in this file.
 
-The format is inspired by Keep a Changelog and this project is currently in an early alpha stage.
+The format is inspired by Keep a Changelog and this project is currently in a beta stage.
 
 ## [0.1.0-alpha] - 2026-03-31
 

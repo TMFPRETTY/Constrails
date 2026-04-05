@@ -4,7 +4,7 @@ This document turns the current security audit into an implementation queue.
 
 ## Goal
 
-Move Constrails from strong alpha governance tooling toward a more production-hardened runtime control plane without destroying developer usability.
+Move Constrails from beta governance tooling toward a more production-hardened runtime control plane without destroying developer usability.
 
 ## Phase 1 - Immediate hardening
 
