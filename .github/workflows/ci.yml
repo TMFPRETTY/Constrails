@@ -30,6 +30,48 @@ jobs:
       - name: Run tests
         run: pytest -q tests
 
+  postgres-migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: constrail
+          POSTGRES_USER: constrail
+          POSTGRES_PASSWORD: constrail
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U constrail -d constrail"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Upgrade packaging tools
+        run: python -m pip install --upgrade pip setuptools wheel
+
+      - name: Install project
+        run: python -m pip install -e .[dev]
+
+      - name: Run Alembic upgrade against Postgres
+        env:
+          DATABASE_URL: postgresql+psycopg2://constrail:constrail@localhost:5432/constrail
+        run: python -m constrail.cli db-upgrade --revision head --database-url "$DATABASE_URL"
+
+      - name: Run migration tests against Postgres
+        env:
+          DATABASE_URL: postgresql+psycopg2://constrail:constrail@localhost:5432/constrail
+        run: pytest -q tests/test_db_migrate.py
+
   compose-opa-smoke:
     runs-on: ubuntu-latest
 

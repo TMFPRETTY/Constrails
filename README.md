@@ -5,7 +5,7 @@
 ![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
+Constrails is a **beta-candidate Agent Safety System**: an external runtime governance and containment layer for AI agents.
 
 Instead of trusting an agent to self-regulate, Constrails routes meaningful actions through a safety kernel that can:
 
@@ -35,7 +35,7 @@ Available today:
 - sandbox-first exec behavior with a development sandbox executor
 - Docker sandbox path hardened with clearer production-posture reporting and local compose smoke validation
 - a first-class `constrail` CLI entrypoint
-- read-only admin inspection endpoints for audit, sandbox, capability history, and quota visibility/event inspection
+- read-only admin inspection endpoints for audit, sandbox, capability history, quota visibility/event inspection, and metrics
 - filtered admin queries and scoped admin semantics for operational workflows
 - basic admin/agent auth separation with legacy static keys plus a stricter bearer-token auth path with issuer/audience validation, token revocation, key registry visibility, and a basic secret-rotation bridge
 - deployment examples for Docker Compose + OPA sidecar flow, including a serialized local smoke script
@@ -50,7 +50,7 @@ Constrails has moved well beyond a sketch, but these areas are still maturing to
 - **Identity/auth lifecycle:** bearer tokens now support issuer/audience validation, revocation, and a basic rotation bridge, but stronger issuance and key-management lifecycle controls can still mature further.
 - **OPA live integration depth:** local and CI live-path smoke coverage exists, but richer live-policy assertions across more decision classes can still deepen confidence.
 - **Distribution ergonomics:** install and release flows are better than they were, but broader packaging/distribution polish is still possible.
-- **Storage/migrations:** SQLite development support is solid, but a more formal Postgres-first migration/upgrade story is still the next major production-readiness step.
+- **Storage/migrations:** Alembic baseline migrations and DB operator commands now exist, and CI validates migrations against Postgres, but a broader production upgrade/migration story can still mature further.
 
 ## Why Constrails
 

@@ -14,4 +14,5 @@ def test_prometheus_metrics_endpoint():
     assert 'constrail_approval_outbox_total' in text
     assert 'constrail_quota_events_total' in text
     assert 'constrail_audit_records_total' in text
+    assert 'constrail_audit_records_last_hour' in text
     assert 'constrail_sandbox_production_ready' in text

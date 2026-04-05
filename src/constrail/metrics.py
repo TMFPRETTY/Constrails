@@ -16,12 +16,14 @@ def get_metrics_snapshot() -> dict:
         sandbox_failed = db.query(SandboxExecutionModel).filter(SandboxExecutionModel.status == 'failed').count()
         quota_total = db.query(QuotaEventModel).count()
         quota_last_hour_total = quota_summary['total_events']
+        audit_last_hour = db.query(AuditRecordModel).filter(AuditRecordModel.start_time >= __import__('datetime').datetime.utcnow() - __import__('datetime').timedelta(hours=1)).count()
         return {
             'approvals': approval_summary,
             'quotas_last_hour': quota_summary,
             'quota_events_total': quota_total,
             'quota_events_last_hour': quota_last_hour_total,
             'audit_records_total': audit_count,
+            'audit_records_last_hour': audit_last_hour,
             'sandbox_executions_total': sandbox_count,
             'sandbox_failed_total': sandbox_failed,
             'sandbox_health': sandbox_health(),
@@ -46,6 +48,7 @@ def render_prometheus_metrics() -> str:
         '# HELP constrail_audit_records_total Total audit records persisted',
         '# TYPE constrail_audit_records_total gauge',
         f"constrail_audit_records_total {snapshot['audit_records_total']}",
+        f"constrail_audit_records_last_hour {snapshot['audit_records_last_hour']}",
         '# HELP constrail_sandbox_executions_total Total sandbox executions persisted',
         '# TYPE constrail_sandbox_executions_total gauge',
         f"constrail_sandbox_executions_total {snapshot['sandbox_executions_total']}",

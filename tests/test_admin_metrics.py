@@ -14,5 +14,6 @@ def test_admin_metrics_endpoint():
     assert 'approvals' in body
     assert 'quotas_last_hour' in body
     assert 'audit_records_total' in body
+    assert 'audit_records_last_hour' in body
     assert 'sandbox_executions_total' in body
     assert 'sandbox_health' in body
