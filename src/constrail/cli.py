@@ -25,6 +25,7 @@ from .rate_limits import get_rate_limit_service
 from .kernel_v2 import ConstrailKernel
 from .sandbox import get_sandbox_executor, reset_sandbox_executor, sandbox_health
 from .audit_verify import get_audit_verifier
+from .audit_checkpoint import create_audit_checkpoint
 from .db_migrate import current_db, upgrade_db
 
 console = Console()
@@ -250,6 +251,18 @@ def sandbox_validate_command(as_json: bool):
 def audit_verify_command(as_json: bool):
     init_db()
     payload = get_audit_verifier().verify()
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    console.print_json(json.dumps(payload))
+
+
+@cli.command("audit-checkpoint", help="Create an audit checkpoint/export summary.")
+@click.option("--output", default=None, help="Optional path to write the checkpoint JSON.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON.")
+def audit_checkpoint_command(output: str | None, as_json: bool):
+    init_db()
+    payload = create_audit_checkpoint(output)
     if as_json:
         click.echo(json.dumps(payload, indent=2))
         return

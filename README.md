@@ -2,7 +2,7 @@
 
 ![Alpha](https://img.shields.io/badge/status-alpha-orange)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-90%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is an **Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -180,6 +180,7 @@ Current development defaults:
 - auth mode: legacy static keys plus a stricter alpha bearer-token path (`agent_api_key`, `admin_api_key`, `Authorization: Bearer ...`)
 - approval webhooks: optional, with delivery tracking, retry support, outbox state, auto-drain controls, bounded worker-mode support, attempt limits, and HMAC signing
 - quotas: persisted quota events, scoped thresholds, configurable enforcement mode, summary/event inspection, and prune controls
+- observability: admin metrics snapshot, Prometheus-style `/metrics`, and audit checkpoint/export summaries
 
 These defaults are intentionally optimized for local bring-up, not for final production deployment.
 
@@ -274,6 +275,7 @@ constrail auth-inspect-token <token> --json
 constrail auth-revoke-token <token> --json
 constrail auth-rotate-secret --json
 constrail audit-verify --json
+constrail audit-checkpoint --json
 constrail quota-summary --json
 constrail quota-events --json
 constrail quota-prune --older-than-seconds 86400 --json
@@ -328,6 +330,7 @@ constrail capability-deactivate 2
 ```bash
 constrail audit-list --limit 10 --json
 constrail audit-verify --json
+constrail audit-checkpoint --json
 constrail sandbox-list --limit 10 --json
 constrail quota-summary --json
 constrail quota-events --limit 20 --json
@@ -357,6 +360,8 @@ Approval responses include delivery visibility for webhook-backed operator notif
 - `GET /v1/admin/sandbox`
 - `GET /v1/admin/sandbox/{sandbox_id}`
 - `GET /v1/admin/capabilities`
+- `GET /v1/admin/metrics`
+- `GET /metrics`
 - `GET /v1/admin/quotas`
 - `GET /v1/admin/quota-events`
 
