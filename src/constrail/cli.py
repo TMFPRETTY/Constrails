@@ -25,6 +25,7 @@ from .rate_limits import get_rate_limit_service
 from .kernel_v2 import ConstrailKernel
 from .sandbox import get_sandbox_executor, reset_sandbox_executor, sandbox_health
 from .audit_verify import get_audit_verifier
+from .db_migrate import current_db, upgrade_db
 
 console = Console()
 
@@ -156,6 +157,20 @@ def auth_rotate_secret_command(as_json: bool):
 def init_db_command():
     init_db()
     console.print("[green]Database initialized.[/green]")
+
+
+@cli.command("db-upgrade", help="Apply Alembic migrations up to the requested revision.")
+@click.option("--revision", default="head", help="Target Alembic revision (default: head).")
+@click.option("--database-url", default=None, help="Optional database URL override for migration commands.")
+def db_upgrade_command(revision: str, database_url: str | None):
+    upgrade_db(revision, database_url=database_url)
+    console.print(f"[green]Database upgraded to {revision}.[/green]")
+
+
+@cli.command("db-current", help="Show current Alembic revision.")
+@click.option("--database-url", default=None, help="Optional database URL override for migration commands.")
+def db_current_command(database_url: str | None):
+    current_db(verbose=True, database_url=database_url)
 
 
 @cli.command("serve", help="Run the Constrail API server.")

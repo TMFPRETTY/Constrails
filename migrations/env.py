@@ -52,6 +52,12 @@ def run_migrations_online() -> None:
         database_url = settings.database_url or config.get_main_option("sqlalchemy.url")
         connectable = create_engine(database_url, poolclass=pool.NullPool)
 
+    if isinstance(connectable, Connection):
+        context.configure(connection=connectable, target_metadata=target_metadata, compare_type=True)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
 
