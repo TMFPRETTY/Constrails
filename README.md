@@ -2,7 +2,7 @@
 
 ![Beta](https://img.shields.io/badge/status-beta-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-97%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Constrails is a **beta Agent Safety System**: an external runtime governance and containment layer for AI agents.
@@ -50,7 +50,7 @@ Constrails has moved well beyond a sketch, but these areas are still maturing to
 - **Identity/auth lifecycle:** bearer tokens now support issuer/audience validation, revocation, and a basic rotation bridge, but stronger issuance and key-management lifecycle controls can still mature further.
 - **OPA live integration depth:** local and CI live-path smoke coverage exists, but richer live-policy assertions across more decision classes can still deepen confidence.
 - **Distribution ergonomics:** install and release flows are better than they were, but broader packaging/distribution polish is still possible.
-- **Storage/migrations:** Alembic baseline migrations and DB operator commands now exist, and CI validates migrations against Postgres, but a broader production upgrade/migration story can still mature further.
+- **Storage/migrations:** Alembic baseline migrations and DB operator commands now exist, CI validates migrations against Postgres, and production backup/restore and upgrade guidance now exist, but broader multi-version upgrade validation can still mature further.
 
 ## Why Constrails
 
@@ -410,6 +410,14 @@ Current test coverage includes:
 ## Changelog
 
 See `CHANGELOG.md` for milestone history.
+
+## Production readiness references
+
+For operator-facing production guidance, see:
+- `docs/production-deployment.md`
+- `SECURITY-AUDIT.md`
+- `docs/security-roadmap.md`
+- `RELEASE.md`
 
 ## Contributing
 

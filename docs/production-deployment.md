@@ -1,6 +1,6 @@
 # Constrails Production Deployment Guide
 
-Constrails is still an early beta, but it is ready for production-oriented pilots when deployed with care. This guide documents the current best practices for running Constrails outside of development.
+Constrails is now in beta, and it is ready for production-oriented pilots when deployed with care. This guide documents the current best practices for running Constrails outside of development.
 
 ## 1. Overview
 
@@ -14,11 +14,20 @@ Constrails acts as an external runtime governance layer for AI agents. A product
 
 ## 2. Prerequisites
 
+### Supported baseline
+
 - Linux host or Kubernetes cluster with hardened configuration
-- Python 3.10+ runtime or container-based deployment
+- Python 3.10 or 3.11
 - Docker runtime (for Docker sandbox enforcement) or equivalent sandbox executor
-- Postgres 13+ (recommended) for the Constrails database
+- Postgres 16 recommended for production, Postgres 13+ supported for operator-managed deployments
 - OPA server (optional but recommended) for live policy evaluation
+
+### Deployment modes
+
+Currently supported and documented:
+- single-host VM deployment
+- container deployment
+- Kubernetes-style deployment patterns (operator-managed, not yet a packaged Helm distribution)
 
 ## 3. Configuration Checklist
 
@@ -42,9 +51,18 @@ Key environment settings for production:
 ## 4. Database (Postgres) Guidance
 
 - Create a dedicated Postgres database and user for Constrails.
-- Apply migrations before each deployment (Alembic recommended).
+- Apply migrations before each deployment with `constrail db-upgrade`.
+- Use a staging environment to validate upgrades before touching production.
 - Enable TLS or run inside a trusted network segment.
 - Backup regularly; treat Constrails audit/quota tables as sensitive records.
+
+### Supported upgrade posture
+
+For the current beta:
+- forward upgrades are the supported path
+- always back up the database before applying migrations
+- test new releases against a staging copy of production data when possible
+- if a deployment fails after migration, restore from backup rather than assuming automatic downgrade safety
 
 Example DSN:
 ```
@@ -111,15 +129,39 @@ Integrate with Prometheus or log analytics where possible. Until a native metric
 - Run approval worker as a separate deployment/job.
 - Mount policy/capability files via ConfigMap/Secret.
 
-## 12. Backup & Upgrade Procedures
+## 12. Backup, Restore, and Upgrade Procedures
+
+### Backup guidance
 
 - Backup the Postgres database regularly (daily increments, weekly full).
-- Export audit checkpoints periodically (once implemented).
-- Before upgrades:
-  1. Backup DB
-  2. Apply migrations
-  3. Redeploy API and worker
-  4. Run smoke tests (`constrail audit-verify`, `constrail quota-summary`, `constrail approval-summary`)
+- Treat approval, audit, quota, token, and capability records as operationally important state.
+- Export audit checkpoints periodically with `constrail audit-checkpoint --json` and archive them outside the primary database.
+
+### Restore guidance
+
+- Restore to a fresh Postgres instance or isolated recovery database first.
+- Run `constrail db-current --database-url <restored-dsn>` to confirm migration state.
+- Run `constrail audit-verify --json` against the restored environment before promoting it.
+- Validate approval summary, quota summary, and admin metrics before returning traffic.
+
+### Upgrade procedure
+
+1. Backup DB.
+2. Roll out the new application image/package to staging.
+3. Apply migrations with `constrail db-upgrade --revision head --database-url <dsn>`.
+4. Run post-upgrade smoke checks:
+   - `constrail db-current --database-url <dsn>`
+   - `constrail audit-verify --json`
+   - `constrail quota-summary --json`
+   - `constrail approval-summary --json`
+5. Redeploy API and worker.
+6. Watch `/metrics` and admin metrics for regressions.
+
+### Rollback posture
+
+- Application rollback without DB rollback is only safe when the prior version is compatible with the migrated schema.
+- Database rollback should be handled by restoring from backup unless a release explicitly documents a safe downgrade path.
+- Treat restore-based rollback as the default supported recovery path in beta.
 
 ## 13. Security Checklist
 
@@ -137,11 +179,11 @@ Integrate with Prometheus or log analytics where possible. Until a native metric
 ## 14. Future Enhancements (Roadmap Alignment)
 
 As Constrails approaches GA, expect additional improvements in:
-- Postgres-first migrations (Alembic)
-- Dedicated approval worker service
-- Metrics endpoint
-- Signed audit checkpoints
-- Session-level exfiltration detection
+- broader multi-version upgrade-path validation
+- stronger operator runbooks and alert packs
+- deeper approval-worker durability guidance
+- signed or externally anchored audit checkpoints
+- session-level exfiltration detection
 
 Document updates will follow as these features land.
 

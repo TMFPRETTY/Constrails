@@ -72,6 +72,11 @@ jobs:
           DATABASE_URL: postgresql+psycopg2://constrail:constrail@localhost:5432/constrail
         run: pytest -q tests/test_db_migrate.py
 
+      - name: Verify migration state after upgrade
+        env:
+          DATABASE_URL: postgresql+psycopg2://constrail:constrail@localhost:5432/constrail
+        run: python -m constrail.cli db-current --database-url "$DATABASE_URL"
+
   compose-opa-smoke:
     runs-on: ubuntu-latest
 
