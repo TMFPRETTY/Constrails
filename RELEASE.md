@@ -16,8 +16,10 @@ This document describes the suggested process for publishing Constrails releases
 - confirm sandbox posture defaults are documented and intentional
 - confirm capability lifecycle commands and approval operator workflows are current
 - review the release notes draft for the intended beta milestone or release candidate
-- confirm production deployment, backup/restore, and upgrade docs still match the shipped behavior
+- confirm production deployment, operations, backup/restore, and upgrade docs still match the shipped behavior
+- confirm known limitations and GA checklist docs are current
 - confirm Postgres migration CI is green
+- confirm no unresolved high-severity security issues remain for the intended release class
 
 ## Suggested commands
 

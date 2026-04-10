@@ -159,6 +159,16 @@ Sandbox posture checks are stronger and more explicit now, and strict posture en
 - session-level exfiltration/chaining detection
 - deeper multi-scenario live OPA CI matrix
 
+## Release-Bar Perspective
+
+For GA, the main remaining security bar is not proving the concept. That part is already established. The remaining bar is operational trust:
+
+- documented production assumptions
+- no unresolved high-severity security issues
+- operator-ready key, audit, and sandbox guidance
+- clear known limitations
+- repeatable upgrade and recovery procedures
+
 ## Bottom Line
 
-Constrails now materially improves agent safety and security compared with uncontrolled agent tool access. The remaining work is primarily production hardening, reliability, and trust-boundary strengthening — not proof that the model of external runtime governance is unsound.
+Constrails now materially improves agent safety and security compared with uncontrolled agent tool access. The remaining work is primarily production hardening, reliability, and trust-boundary strengthening, not proof that the model of external runtime governance is unsound.

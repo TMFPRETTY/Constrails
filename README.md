@@ -416,6 +416,8 @@ See `CHANGELOG.md` for milestone history.
 For operator-facing production guidance, see:
 - `docs/production-deployment.md`
 - `docs/operations-guide.md`
+- `docs/known-limitations.md`
+- `docs/ga-checklist.md`
 - `SECURITY-AUDIT.md`
 - `docs/security-roadmap.md`
 - `RELEASE.md`
