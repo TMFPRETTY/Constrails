@@ -431,17 +431,14 @@ See `CONTRIBUTING.md`.
 
 See `SECURITY.md`.
 
-## Alpha release
+## Release history
 
-A draft alpha release note is included at:
+Historical alpha release materials remain available at:
 
 - `.github/release-notes/0.1.0-alpha.md`
-
-Suggested tag:
-
 - `v0.1.0-alpha`
 
-See `RELEASE.md` and `.github/release-checklist.md` for release workflow guidance.
+Current GA release workflow guidance is documented in `RELEASE.md`, and the current GA release notes are in `.github/release-notes/1.0.0.md`.
 
 ## Safety Note
 
