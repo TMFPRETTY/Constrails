@@ -94,7 +94,7 @@ A practical final gate before GA should include:
 
 ### Batch D, final GA validation
 - run a realistic staged Postgres upgrade rehearsal
-- validate migration on an existing staged database snapshot
+- validate migration on an existing staged database snapshot or rehearsal DB
 - perform approval worker smoke verification using the ops guide
 - perform metrics and alert smoke review
 

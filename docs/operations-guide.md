@@ -86,7 +86,7 @@ Start simple and practical:
 For beta, run the approval worker as a dedicated long-lived process using:
 
 ```bash
-constrail approval-worker-serve --sleep-seconds 1 --limit 20 --backoff-multiplier 2 --max-sleep-seconds 30 --json
+constrail approval-worker-serve --sleep-seconds 1 --limit 20 --backoff-multiplier 2 --max-sleep-seconds 30
 ```
 
 If you want bounded runs for cron-style execution, use:
