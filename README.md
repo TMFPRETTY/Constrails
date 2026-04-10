@@ -1,11 +1,11 @@
 # Constrails
 
-![Beta](https://img.shields.io/badge/status-beta-blue)
+![GA](https://img.shields.io/badge/status-ga-success)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-97%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-100%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Constrails is a **beta Agent Safety System**: an external runtime governance and containment layer for AI agents.
+Constrails is a **general-availability Agent Safety System**: an external runtime governance and containment layer for AI agents.
 
 Instead of trusting an agent to self-regulate, Constrails routes meaningful actions through a safety kernel that can:
 
@@ -19,7 +19,7 @@ Instead of trusting an agent to self-regulate, Constrails routes meaningful acti
 
 ## Current Status
 
-Constrails currently provides a working **development MVP spine** for governed agent execution.
+Constrails now provides a **GA baseline** for governed agent execution with documented production deployment, operations, and support posture.
 
 Available today:
 - canonical kernel path (`kernel_v2.py`) behind FastAPI (`kernel.py`)
@@ -41,9 +41,9 @@ Available today:
 - deployment examples for Docker Compose + OPA sidecar flow, including a serialized local smoke script
 - automated test coverage for the current MVP spine
 
-## Current gaps toward production use
+## Current limitations and next hardening areas
 
-Constrails has moved well beyond a sketch, but these areas are still maturing toward a more production-grade posture:
+Constrails is now GA, but GA does not mean every surrounding operational concern is fully maximized. These areas still have room to mature:
 
 - **Approval operations:** an outbox model, drain command, optional in-process auto-drain, signed delivery, and a bounded worker mode with richer idle/backoff summaries now exist, but this is still not a full standalone asynchronous worker/service.
 - **Sandbox validation breadth:** Docker posture and local smoke coverage are stronger, but broader validation across more deployment targets is still warranted.
@@ -150,13 +150,13 @@ python -m constrail.cli --help
 A basic application image can be built from the included Dockerfile:
 
 ```bash
-docker build -t constrails:beta .
+docker build -t constrails:1.0.0 .
 ```
 
 Run it:
 
 ```bash
-docker run --rm -p 8000:8000 constrails:beta
+docker run --rm -p 8000:8000 constrails:1.0.0
 ```
 
 ## Configuration

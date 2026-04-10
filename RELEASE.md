@@ -4,7 +4,7 @@ This document describes the suggested process for publishing Constrails releases
 
 ## Current target
 
-- next beta milestone or release candidate
+- `1.0.0`
 
 ## Pre-release checklist
 
@@ -15,7 +15,7 @@ This document describes the suggested process for publishing Constrails releases
 - confirm sample OPA bundle and compose example are present
 - confirm sandbox posture defaults are documented and intentional
 - confirm capability lifecycle commands and approval operator workflows are current
-- review the release notes draft for the intended beta milestone or release candidate
+- review `.github/release-notes/1.0.0.md`
 - confirm production deployment, operations, backup/restore, and upgrade docs still match the shipped behavior
 - confirm known limitations and GA checklist docs are current
 - confirm Postgres migration CI is green
@@ -42,24 +42,26 @@ git status
 ### 3. Create the annotated tag
 
 ```bash
-git tag -a v0.2.0-beta -m "Constrails v0.2.0-beta"
+git tag -a v1.0.0 -m "Constrails v1.0.0"
 ```
 
 ### 4. Push the tag
 
 ```bash
-git push origin v0.2.0-beta
+git push origin v1.0.0
 ```
 
 ### 5. Create the GitHub release
 
-Use the release notes draft that matches the intended beta milestone.
+Use the contents of:
+
+- `.github/release-notes/1.0.0.md`
 
 Recommended release title:
 
-- `Constrails v0.2.0-beta`
+- `Constrails v1.0.0`
 
-Mark it as a **pre-release** on GitHub until GA.
+Mark it as a full release on GitHub.
 
 ## After release
 
@@ -67,4 +69,4 @@ Mark it as a **pre-release** on GitHub until GA.
 - verify release notes render correctly
 - verify README links and badges still look right
 - verify sandbox posture and env defaults still match documentation
-- optionally announce the beta milestone in project/community channels
+- optionally announce the GA release in project/community channels

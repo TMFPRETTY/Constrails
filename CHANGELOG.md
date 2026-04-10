@@ -2,7 +2,25 @@
 
 All notable changes to Constrails will be documented in this file.
 
-The format is inspired by Keep a Changelog and this project is currently in a beta stage.
+The format is inspired by Keep a Changelog and this project is currently in a general-availability stage.
+
+## [1.0.0] - 2026-04-10
+
+### Added
+- Postgres migration validation in CI plus DB operator commands for upgrade/current state inspection
+- production deployment guide, operations guide, support matrix, known limitations, and GA checklist
+- audit verification and audit checkpoint export workflows
+- admin metrics snapshot and Prometheus-style `/metrics` endpoint
+- GA validation smoke coverage for migration rehearsal, worker operation, and metrics review
+
+### Changed
+- project status advanced from alpha/beta hardening to general availability
+- README, release workflow, and support posture docs updated for the GA release
+- production guidance now clearly documents backup/restore, rollback posture, approval worker operations, and support expectations
+
+### Notes
+- Constrails 1.0.0 is intended for production use with the documented operator posture.
+- Known limitations remain explicitly documented, especially around audit anchoring, distributed worker semantics, and environment-specific sandbox hardening.
 
 ## [0.1.0-alpha] - 2026-03-31
 
