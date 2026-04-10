@@ -114,7 +114,9 @@ Recommended metrics and logs:
 - Audit verification results
 - Worker loop metrics (processed/delivered/failed/idle cycles)
 
-Integrate with Prometheus or log analytics where possible. Until a native metrics endpoint ships, capture logs from CLI commands and admin APIs.
+Integrate with Prometheus or log analytics where possible. Constrails now exposes both an admin metrics snapshot and a Prometheus-style `/metrics` endpoint.
+
+For dashboards, alert suggestions, worker operations, and audit retention/export playbooks, see `docs/operations-guide.md`.
 
 ## 11. Deployment Patterns
 
