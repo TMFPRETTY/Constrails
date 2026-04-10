@@ -1,7 +1,7 @@
 # Constrails Security Audit
 
-_Date:_ 2026-03-31  
-_Status:_ beta security sweep  
+_Date:_ 2026-04-10  
+_Status:_ GA-targeted beta security review  
 _Scope:_ full-system adversarial review of identity, authorization, kernel lifecycle, tool brokering, sandboxing, policy evaluation, approval workflows, auditability, tenant isolation, API/CLI surfaces, and delivery operations.
 
 ## Executive Summary
@@ -159,16 +159,26 @@ Sandbox posture checks are stronger and more explicit now, and strict posture en
 - session-level exfiltration/chaining detection
 - deeper multi-scenario live OPA CI matrix
 
-## Release-Bar Perspective
+## GA-Targeted Security Position
 
 For GA, the main remaining security bar is not proving the concept. That part is already established. The remaining bar is operational trust:
 
 - documented production assumptions
-- no unresolved high-severity security issues
+- no unresolved high-severity security issues at release time
 - operator-ready key, audit, and sandbox guidance
 - clear known limitations
 - repeatable upgrade and recovery procedures
 
+### GA decision on audit anchoring
+
+Signed or externally anchored audit checkpoints would strengthen the long-term forensic story, but they are **not a hard blocker for GA** if all of the following remain true:
+- audit verification and checkpoint export remain documented and working
+- storage and tamper assumptions remain explicit
+- production guidance does not overclaim third-party attestation strength
+- known limitations continue to state that checkpoints are not externally notarized
+
+That means audit anchoring is best treated as a **post-GA hardening enhancement**, unless a target customer or deployment environment explicitly requires third-party attestation before adoption.
+
 ## Bottom Line
 
-Constrails now materially improves agent safety and security compared with uncontrolled agent tool access. The remaining work is primarily production hardening, reliability, and trust-boundary strengthening, not proof that the model of external runtime governance is unsound.
+Constrails now materially improves agent safety and security compared with uncontrolled agent tool access. A credible GA release is achievable if the remaining release-time security bar is satisfied: no unresolved high-severity issues, explicit support posture, and honest limitations around audit anchoring, worker durability, and deployment assumptions.

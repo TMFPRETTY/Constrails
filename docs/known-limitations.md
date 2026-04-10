@@ -51,6 +51,14 @@ Constrails exposes admin metrics, `/metrics`, and operator docs, but:
 - alert thresholds still need environment-specific tuning
 - operators should integrate with their own monitoring stack
 
-## 8. Beta means operational caution is still required
+## 8. Remaining GA blockers are mostly release-time assurances
+
+At this point, the major remaining blockers are less about missing core controls and more about final release-time confidence:
+- explicit GA support promises
+- final release security review
+- confirmation that no unresolved high-severity issues remain
+- final release notes that match the actual support posture
+
+## 9. Beta means operational caution is still required
 
 Constrails is real beta software, not a toy, but also not yet a fully mature GA control plane. Production-oriented pilots are reasonable. Mission-critical deployment should still be approached with staged rollout, backups, monitoring, and explicit operator ownership.

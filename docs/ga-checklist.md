@@ -58,11 +58,10 @@ Status labels:
 - **Partial**: secret and token lifecycle guidance is production-usable, but still early compared with mature enterprise key management
 - **Done**: sandbox production posture requirements are documented and validated
 - **Done**: audit verification workflow is documented for upgrades and restores
-- **Partial**: audit checkpoints exist, but are not externally anchored or signed for stronger third-party attestation
+- **Done**: audit anchoring decision is documented for GA, with explicit limitations preserved
 
 ### Remaining work
-- perform a final GA security review pass
-- decide whether externally anchored or signed audit checkpoints are required before GA
+- perform a final release-time high-severity issue review
 - tighten key lifecycle/operator guidance where needed
 
 ## 5. Positioning and support expectations
@@ -72,10 +71,11 @@ Status labels:
 - **Done**: release guide targets the intended beta/release-candidate flow
 - **Done**: known limitations are linked from public docs
 - **Done**: current messaging avoids unsupported GA claims
-- **Open**: final GA support matrix and support promise language
+- **Done**: support matrix and compatibility posture are now explicitly documented
+- **Partial**: final GA support promise language still needs release-time confirmation
 
 ### Remaining work
-- define GA support expectations explicitly
+- confirm the exact GA support promises at release time
 - decide what version-compatibility and deprecation promises GA will make
 
 ## 6. Recommended final gate
@@ -101,7 +101,7 @@ A practical final gate before GA should include:
 ### Batch E, final security and support posture
 - refresh the security audit as a GA-targeted review
 - define the GA support matrix and compatibility promises
-- decide whether signed/external audit anchoring is required before GA
+- document the audit anchoring decision for GA
 
 ### Batch F, GA release prep
 - draft GA release notes
